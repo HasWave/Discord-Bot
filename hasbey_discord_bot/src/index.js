@@ -1,7 +1,9 @@
 const path = require('path');
 const { ROOT } = require('./lib/paths');
 const { loadProjectEnv } = require('./lib/envJson');
+const { applyHomeAssistantOptionsMerge } = require('./lib/haOptionsMerge');
 loadProjectEnv(ROOT);
+applyHomeAssistantOptionsMerge();
 const fs = require('fs');
 const { Client, Collection, Events, GatewayIntentBits, ActivityType } = require('discord.js');
 const chalk = require('chalk');
