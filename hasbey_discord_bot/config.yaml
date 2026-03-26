@@ -1,0 +1,24 @@
+# Home Assistant Supervisor eklentisi (yerel veya özel git depo).
+name: HasBEY Discord Bot
+version: '1.0.0'
+slug: hasbey_discord_bot
+description: HasBEY Node.js Discord botu (token ortam değişkenleri ile).
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: application
+boot: auto
+ports: {}
+ports_description: {}
+map:
+  - share:rw
+options:
+  discord_token: ''
+  client_id: ''
+  guild_id: ''
+schema:
+  discord_token: password
+  client_id: str?
+  guild_id: str?

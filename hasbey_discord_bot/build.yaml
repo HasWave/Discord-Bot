@@ -1,0 +1,5 @@
+# Supervisor her mimari için BUILD_FROM olarak Dockerfile’a geçirir.
+build_from:
+  aarch64: node:22-alpine
+  armv7: node:22-alpine
+  amd64: node:22-alpine

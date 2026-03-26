@@ -1,0 +1,24 @@
+{
+  "name": "hasbey",
+  "version": "1.0.0",
+  "description": "HasBEY Discord Botu",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "menu": "node menu.js",
+    "deploy-commands": "node src/deploy-commands.js"
+  },
+  "author": "HasBEY",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.4.5"
+  },
+  "overrides": {
+    "undici": "6.24.1"
+  }
+}

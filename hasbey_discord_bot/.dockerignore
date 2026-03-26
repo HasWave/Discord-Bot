@@ -1,0 +1,7 @@
+node_modules
+.git
+.env
+env.json
+data
+*.bat
+**/.DS_Store
