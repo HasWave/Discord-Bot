@@ -1,5 +1,6 @@
-# Supervisor her mimari için BUILD_FROM olarak Dockerfile’a geçirir.
+# Supervisor, kısa adları (node:22-alpine) reddeder; tam referans gerekir.
+# Aksi halde build.yaml sıfırlanır ve homeassistant/base ile npm olmadan derlenir.
 build_from:
-  aarch64: node:22-alpine
-  armv7: node:22-alpine
-  amd64: node:22-alpine
+  aarch64: docker.io/library/node:22-alpine
+  armv7: docker.io/library/node:22-alpine
+  amd64: docker.io/library/node:22-alpine

@@ -1,4 +1,4 @@
-ARG BUILD_FROM=node:22-alpine
+ARG BUILD_FROM=docker.io/library/node:22-alpine
 FROM ${BUILD_FROM}
 
 WORKDIR /app
