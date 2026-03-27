@@ -7,6 +7,10 @@ function isGuildSetup(cfg) {
 function canOperateServer(member, cfg) {
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
   if (cfg.botOwnerId && member.id === cfg.botOwnerId) return true;
+  const ownerRoleId = cfg?.roles?.ownerRoleId ? String(cfg.roles.ownerRoleId).trim() : '';
+  const adminRoleId = cfg?.roles?.adminRoleId ? String(cfg.roles.adminRoleId).trim() : '';
+  if (ownerRoleId && member.roles?.cache?.has(ownerRoleId)) return true;
+  if (adminRoleId && member.roles?.cache?.has(adminRoleId)) return true;
   return false;
 }
 

@@ -53,15 +53,21 @@ const rest = new REST({ version: '10' }).setToken(token);
 (async () => {
   try {
     let clientId = String(process.env.CLIENT_ID || process.env.APPLICATION_ID || '').trim();
+    const app = await rest.get(Routes.oauth2CurrentApplication());
+    const tokenAppId = String(app?.id || '').trim();
     if (!clientId) {
-      const app = await rest.get(Routes.oauth2CurrentApplication());
-      clientId = app.id;
+      clientId = tokenAppId;
       console.log(
         `ℹ CLIENT_ID tanımsız; token ile uygulama kimliği okundu: ${clientId}\n` +
           '  İstersen env.json içine ekleyebilirsin: "CLIENT_ID": "' +
           clientId +
           '"\n'
       );
+    } else if (tokenAppId && clientId !== tokenAppId) {
+      console.warn(
+        `⚠ CLIENT_ID (${clientId}) token uygulamasıyla eşleşmiyor. Doğru uygulama kimliği kullanılacak: ${tokenAppId}`
+      );
+      clientId = tokenAppId;
     }
 
     if (guildIds.length) {

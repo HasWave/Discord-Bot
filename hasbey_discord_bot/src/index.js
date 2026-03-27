@@ -1,8 +1,8 @@
 const path = require('path');
 const { ROOT } = require('./lib/paths');
 const { loadProjectEnv } = require('./lib/envJson');
-const { applyHomeAssistantOptionsMerge } = require('./lib/haOptionsMerge');
 loadProjectEnv(ROOT);
+const { applyHomeAssistantOptionsMerge } = require('./lib/haOptionsMerge');
 applyHomeAssistantOptionsMerge();
 const fs = require('fs');
 const { Client, Collection, Events, GatewayIntentBits, ActivityType } = require('discord.js');
@@ -12,6 +12,7 @@ const { readGuildConfig } = require('./lib/storage');
 const { tickAfk } = require('./services/afk');
 const { ensureBotData } = require('./services/tempVoice');
 const { syncMemberCountChannel } = require('./services/channelStatus');
+const { disableBotIntegrationRoleHoist, disableBotIntegrationRoleHoistAll } = require('./services/botIntegrationRole');
 const { logError, logWarn, installProcessErrorLogging } = require('./lib/botLogger');
 
 installProcessErrorLogging();
@@ -320,6 +321,8 @@ client.once(Events.ClientReady, (c) => {
 
   startProfilePatchPoller();
 
+  void disableBotIntegrationRoleHoistAll(c);
+
   for (const g of c.guilds.cache.values()) {
     syncMemberCountChannel(c, g).catch(() => {});
   }
@@ -364,6 +367,7 @@ client.on(Events.Error, (e) => {
 
 client.on(Events.GuildCreate, (guild) => {
   console.log(chalk.green(`✓ Sunucuya eklendi: ${guild.name} (${guild.id})`));
+  void guild.members.fetchMe().then(() => disableBotIntegrationRoleHoist(guild)).catch(() => {});
 });
 
 client.on(Events.GuildDelete, (guild) => {

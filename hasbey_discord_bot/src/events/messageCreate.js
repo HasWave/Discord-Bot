@@ -27,11 +27,69 @@ module.exports = async function onMessageCreate(message) {
   const cfg = readGuildConfig(message.guild.id);
   const trimmed = message.content.trim();
   if (!trimmed) return;
+  const normalizedCmdLike = trimmed.toLowerCase().replace(/\s+/g, '');
+
+  if (['/k', '/ka', '/kay', '/kayd', '/kayd0l', '/kuru'].includes(normalizedCmdLike)) {
+    const key = cooldownKey(message, ':didyoumean');
+    const now = Date.now();
+    if (!lastReply.get(key) || now - lastReply.get(key) >= replyCooldownMs) {
+      lastReply.set(key, now);
+      await message
+        .reply({
+          content: '`/kur` mu demek istedin? Kayıt için de `/kaydol` kullanabilirsin.',
+          allowedMentions: { users: [message.author.id] },
+        })
+        .catch(() => {});
+    }
+    return;
+  }
+
+  if (cfg.features?.wordFilter !== false) {
+    const badWords = Array.isArray(cfg.customMessages?.badWords) ? cfg.customMessages.badWords : [];
+    if (badWords.length) {
+      const lowerText = trimmed.toLowerCase();
+      const matched = badWords.find((w) => w && lowerText.includes(String(w).toLowerCase()));
+      if (matched) {
+        const key = cooldownKey(message, ':badword');
+        const now = Date.now();
+        if (message.deletable) {
+          await message.delete().catch(() => {});
+        }
+        if (!lastReply.get(key) || now - lastReply.get(key) >= replyCooldownMs) {
+          lastReply.set(key, now);
+          await message.channel
+            .send({
+              content: `${message.author}, uygunsuz kelime nedeniyle mesajın kaldırıldı.`,
+              allowedMentions: { users: [message.author.id] },
+            })
+            .catch(() => {});
+        }
+        return;
+      }
+    }
+  }
 
   const araCmdId = cfg.channels?.araCommandChannelId ? String(cfg.channels.araCommandChannelId).trim() : '';
+  const low = trimmed.toLowerCase();
+  const shortcuts = Array.isArray(cfg.customMessages?.lfgShortcuts) ? cfg.customMessages.lfgShortcuts : [];
+  const isLfgMessage = low === '!teams' || shortcuts.some((s) => s.trigger === low);
+
+  if (araCmdId && isGuildSetup(cfg) && isLfgMessage && message.channel.id !== araCmdId) {
+    const key = cooldownKey(message, ':lfgwrongch');
+    const now = Date.now();
+    if (!lastReply.get(key) || now - lastReply.get(key) >= replyCooldownMs) {
+      lastReply.set(key, now);
+      await message
+        .reply({
+          content: `🔔 Bu komutu yalnızca <#${araCmdId}> kanalında kullanabilirsiniz.`,
+          allowedMentions: { users: [message.author.id] },
+        })
+        .catch(() => {});
+    }
+    return;
+  }
+
   if (araCmdId && message.channel.id === araCmdId && isGuildSetup(cfg)) {
-    const low = trimmed.toLowerCase();
-    const shortcuts = Array.isArray(cfg.customMessages?.lfgShortcuts) ? cfg.customMessages.lfgShortcuts : [];
 
     if (low === '!teams') {
       const key = cooldownKey(message, ':lfgteams');

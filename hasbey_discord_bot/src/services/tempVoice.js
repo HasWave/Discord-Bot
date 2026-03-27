@@ -135,6 +135,49 @@ async function setLocked(channel, memberRoleId, locked) {
   });
 }
 
+const TEMP_OWNER_ALLOW = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.Connect,
+  PermissionFlagsBits.Speak,
+  PermissionFlagsBits.UseVAD,
+  PermissionFlagsBits.MuteMembers,
+  PermissionFlagsBits.DeafenMembers,
+  PermissionFlagsBits.MoveMembers,
+  PermissionFlagsBits.ManageChannels,
+];
+
+const TEMP_MEMBER_ALLOW = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.Connect,
+  PermissionFlagsBits.Speak,
+  PermissionFlagsBits.UseVAD,
+];
+
+async function setTempChannelOwner(channel, oldOwnerId, newOwnerId) {
+  if (oldOwnerId && oldOwnerId !== newOwnerId) {
+    await channel.permissionOverwrites.edit(oldOwnerId, {
+      ViewChannel: true,
+      Connect: true,
+      Speak: true,
+      UseVAD: true,
+      MuteMembers: false,
+      DeafenMembers: false,
+      MoveMembers: false,
+      ManageChannels: false,
+    });
+  }
+  await channel.permissionOverwrites.edit(newOwnerId, {
+    ViewChannel: true,
+    Connect: true,
+    Speak: true,
+    UseVAD: true,
+    MuteMembers: true,
+    DeafenMembers: true,
+    MoveMembers: true,
+    ManageChannels: true,
+  });
+}
+
 module.exports = {
   ensureBotData,
   isTempChannel,
@@ -143,4 +186,7 @@ module.exports = {
   tryDeleteIfEmpty,
   cancelTempChannelDeleteSchedule,
   setLocked,
+  setTempChannelOwner,
+  TEMP_OWNER_ALLOW,
+  TEMP_MEMBER_ALLOW,
 };

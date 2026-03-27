@@ -6,10 +6,33 @@ const {
   loadGuildTemplateBackup,
 } = require('../lib/storage');
 const { meHas, NEED_MANAGE } = require('../lib/permissions');
-const { isGuildSetup, canOperateServer, isGuildBareForKur } = require('../lib/guards');
+const { isGuildSetup, canOperateServer } = require('../lib/guards');
 const { ensureBotData } = require('../services/tempVoice');
 const { restoreGuildFromBackup, mergeConfigAfterRestore } = require('../services/restoreFromBackup');
+const { deleteAllChannelsAndRoles, installDefaultTemplate } = require('../services/defaultTemplate');
 const { EPHEMERAL } = require('../lib/discordFlags');
+
+async function grantPostSetupRoles(guild, cfg, actorUserId) {
+  const ownerRoleId = cfg?.roles?.ownerRoleId ? String(cfg.roles.ownerRoleId).trim() : '';
+  const botRoleId = cfg?.roles?.botTagRoleId ? String(cfg.roles.botTagRoleId).trim() : '';
+
+  const ownerRole =
+    guild.roles.cache.get(ownerRoleId) ||
+    guild.roles.cache.find((r) => r.name.includes('ᴏᴡɴᴇʀ') || r.name.toLowerCase() === 'owner');
+  const botRole =
+    guild.roles.cache.get(botRoleId) ||
+    guild.roles.cache.find((r) => r.name.includes('ʙᴏᴛ') || r.name.toLowerCase() === 'bot');
+
+  const actor = await guild.members.fetch(actorUserId).catch(() => null);
+  if (actor && ownerRole) {
+    await actor.roles.add(ownerRole.id, '/kur yapan uyeye owner rolu').catch(() => {});
+  }
+
+  const me = guild.members.me || (await guild.members.fetch(guild.client.user.id).catch(() => null));
+  if (me && botRole) {
+    await me.roles.add(botRole.id, 'Bota bot rolu').catch(() => {});
+  }
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -49,36 +72,24 @@ module.exports = {
       return;
     }
 
-    if (!hasGuildTemplateBackup(gid)) {
-      await interaction.editReply({
-        content:
-          '⚠️ **Geçerli yedek yok.**\n' +
-          '• Kaynak sunucuda `/yedekle` ile `sunucu-yedek.json` oluşturun.\n' +
-          `• Hedef sunucuda: \`data/backups/${gid}/sunucu-yedek.json\` **veya** \`data/backups/import/sunucu-yedek.json\` olarak koyun.\n` +
-          'Ardından yeniden `/kur`.',
-        flags: EPHEMERAL,
-      });
-      return;
-    }
-
-    if (!isGuildBareForKur(interaction.guild)) {
-      await interaction.editReply({
-        content:
-          'Bu sunucuda çok fazla kanal/rol var; `/kur` **yalnızca boş / minimal** yapıda kullanılır.\n' +
-          "Gereksizleri silin veya yeni sunucuda deneyin. (İpucu: 'KAYIT' kategorisi varsa da kurulmaz.)",
-        flags: EPHEMERAL,
-      });
-      return;
-    }
+    const hasBackup = hasGuildTemplateBackup(gid);
+    const confirmText = hasBackup
+      ? '✅ **Onay Asamasi**\n' +
+        '- Sunucuda yedek bulundu.\n' +
+        '- Mevcut rol/kanallar temizlenip yedekten geri kurulacak.\n\n' +
+        'Devam edilsin mi?'
+      : '✅ **Onay Asamasi**\n' +
+        '- Sunucuda herhangi bir yedege rastlanmadi.\n' +
+        '- Default HasBEY sablonu kurulacak.\n' +
+        '- Bos sunucuda rol/kanal silme yapilmaz.\n\n' +
+        'Devam edilsin mi?';
 
     await interaction.editReply({
-      content:
-        '**Onay** — Yedekten **roller + kanallar + izin overwrite** kopyalanacak; `botConfig` içindeki ID’ler yeni sunucuya eşlenecek.\n' +
-        'Devam edilsin mi?',
+      content: confirmText,
       flags: EPHEMERAL,
       components: [
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('hby:confirm:kur').setLabel('Evet, kur').setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId('hby:confirm:kur').setLabel('Sablonu Kur').setStyle(ButtonStyle.Success),
           new ButtonBuilder().setCustomId('hby:cancel:kur').setLabel('Hayır').setStyle(ButtonStyle.Secondary)
         ),
       ],
@@ -93,31 +104,49 @@ module.exports = {
 
 module.exports.runKur = async (interaction) => {
   const gid = interaction.guild.id;
-  if (!hasGuildTemplateBackup(gid) || !isGuildBareForKur(interaction.guild)) {
+  const cfg = readGuildConfig(gid);
+  const payload = hasGuildTemplateBackup(gid) ? loadGuildTemplateBackup(gid) : null;
+  if (payload) {
+    try {
+      await deleteAllChannelsAndRoles(interaction.guild);
+      const { roleMap, channelMap } = await restoreGuildFromBackup(interaction.guild, payload);
+      const next = mergeConfigAfterRestore(cfg, gid, payload, roleMap, channelMap);
+      writeGuildConfig(gid, next);
+      await grantPostSetupRoles(interaction.guild, next, interaction.user.id);
+      await interaction.followUp({
+        content:
+          '✅ **Yedekten kurulum bitti.** Roller/kanallar temizlenip yedekten geri yüklendi, kanal/rol ID alanlari guncellendi.',
+        flags: EPHEMERAL,
+      });
+    } catch (e) {
+      await interaction.followUp({
+        content:
+          `❌ Yedekten kurulum basarisiz: ${e.message}\n` +
+          'Bot rolunde **Kanallari Yonet + Rolleri Yonet** oldugunu ve bot rolunun ustte oldugunu kontrol edin.',
+        flags: EPHEMERAL,
+      });
+    }
+    return;
+  }
+
+  try {
+    await deleteAllChannelsAndRoles(interaction.guild);
+    const applied = await installDefaultTemplate(interaction.guild, cfg.botOwnerId || interaction.user.id);
+    const next = { ...cfg, ...applied };
+    writeGuildConfig(gid, next);
+    await grantPostSetupRoles(interaction.guild, next, interaction.user.id);
     await interaction.followUp({
       content:
-        '/kur artık geçersiz: yedek yok veya sunucu artık “sade” değil. Sayfayı yenileyip komutları tekrar deneyin.',
+        '✅ **Varsayilan sablon kuruldu.** Yedek bulunmadigi icin varsayilan kanal/roller temizlenip HasBEY sablonu olusturuldu.',
       flags: EPHEMERAL,
     });
-    return;
+  } catch (e) {
+    await interaction.followUp({
+      content:
+        `❌ Varsayilan sablon kurulamadi: ${e.message}\n` +
+        'Bot rolunde **Kanallari Yonet + Rolleri Yonet** oldugunu ve bot rolunun ustte oldugunu kontrol edin.',
+      flags: EPHEMERAL,
+    });
   }
-  const payload = loadGuildTemplateBackup(gid);
-  if (!payload) {
-    await interaction.followUp({ content: 'Yedek dosyası okunamadı.', flags: EPHEMERAL });
-    return;
-  }
-
-  const { roleMap, channelMap } = await restoreGuildFromBackup(interaction.guild, payload);
-  const cfg = readGuildConfig(gid);
-  const next = mergeConfigAfterRestore(cfg, gid, payload, roleMap, channelMap);
-  writeGuildConfig(gid, next);
-
-  await interaction.followUp({
-    content:
-      '✅ **Yedekten kurulum bitti.** Roller, kategoriler ve kanallar oluşturuldu; izinler kopyalandı. `botConfig` kanal/rol ID’leri güncellendi.\n' +
-      'Özet: `/komutlar` — Eksik eşleşme varsa `data/guilds` içindeki ID’leri menüden düzelt.\n' +
-      '**Not:** Üye bazlı izinler aynı kullanıcı ID’siyle çalışır; entegrasyon rolleri yalnız aynı isimle eşlenir.',
-    flags: EPHEMERAL,
-  });
 };
 

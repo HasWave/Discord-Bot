@@ -1,8 +1,7 @@
 HasBEY Discord Bot — Home Assistant Supervisor (ayrı paket)
 
-Bu klasör ana bot deposundan BAĞIMSIZ Supervisor/GitHub paketidir.
-Ana dizindeki bot dosyaları (src/, bot.js, package.json) burada tutulmaz;
-yalnızca senkron script ile kopyalanır — orijinal koda dokunulmaz.
+Bu klasör ana bot deposundan BAĞIMSIZ Supervisor/GitHub paketidir (tek HA kaynağı).
+Depo kökündeki bot ayrı çalışır; bu ağaç GitHub / Supervisor için.
 
 ──────────────────────────────────────────────────────────────────
 1) Paketi üret
@@ -10,9 +9,9 @@ yalnızca senkron script ile kopyalanır — orijinal koda dokunulmaz.
 
 Ana depot kökünden (HasBEY Discord Bot):
 
-  node hasbey_discord_home_assistant/scripts/sync-addon-from-main.js
+  node seri_github_tool/hasbey_discord_home_assistant/scripts/sync-addon-from-main.js
 
-Çıktı: hasbey_discord_home_assistant/supervisor-addon-repo/
+Çıktı: seri_github_tool/hasbey_discord_home_assistant/supervisor-addon-repo/
   • repository.json
   • hasbey_discord_bot/  ← Dockerfile, config.yaml, bot kaynakları
   • BASLAT_SERI_GITHUB.bat ← GitHub menü aracını buradan çalıştır (bu klasördeki baslat.bat kullanma)

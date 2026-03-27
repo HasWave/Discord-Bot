@@ -57,6 +57,8 @@ function defaultFeatures() {
     afkMover: true,
     /** Metin kanalında tam eşleşen tetik (örn. sa) → yanıt */
     triggerReplies: true,
+    /** Yasaklı kelime filtresi (mesajı sil + uyar) */
+    wordFilter: true,
   };
 }
 
@@ -109,6 +111,49 @@ function defaultCustomMessages() {
     triggerReplies: [],
     /** Ekip arama kanalında kullanılan !kısayol → Oyun adı */
     lfgShortcuts: defaultLfgShortcuts(),
+    /** Yasaklı kelime listesi (küçük harf normalize) */
+    badWords: [],
+    /** Hoş geldin görsel/başlık özelleştirme */
+    welcomeCard: {
+      title: '👋 Hoş geldin',
+      imageUrl: '',
+      color: '#FEE75C',
+    },
+  };
+}
+
+function normalizeBadWords(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const x of raw) {
+    const w = String(x ?? '')
+      .toLowerCase()
+      .trim()
+      .slice(0, 64);
+    if (!w || seen.has(w)) continue;
+    seen.add(w);
+    out.push(w);
+  }
+  return out;
+}
+
+function normalizeWelcomeCard(raw, fallback) {
+  const f = fallback || defaultCustomMessages().welcomeCard;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...f };
+  const title = String(raw.title ?? f.title)
+    .trim()
+    .slice(0, 120);
+  const imageUrl = String(raw.imageUrl ?? '')
+    .trim()
+    .slice(0, 500);
+  const color = String(raw.color ?? f.color)
+    .trim()
+    .slice(0, 16);
+  return {
+    title: title || f.title,
+    imageUrl,
+    color: color || f.color,
   };
 }
 
@@ -117,9 +162,9 @@ function defaultGuildRecord() {
     setupComplete: false,
     botOwnerId: null,
     roles: {
-      memberRoleName: 'Kayıtlı',
+      memberRoleName: 'ᴛᴇꜱ̧ᴋɪʟᴀᴛ',
       memberRoleId: null,
-      guestRoleName: 'Misafir',
+      guestRoleName: 'ᴍɪꜱᴀꜰɪʀ',
       guestRoleId: null,
     },
     channels: {},
@@ -177,6 +222,8 @@ function readGuildConfig(guildId) {
         welcomeLines: Array.isArray(wl) ? wl.map((s) => String(s)) : base.customMessages.welcomeLines,
         triggerReplies: normTriggers(tr),
         lfgShortcuts: normalizeLfgShortcuts(parsed.customMessages?.lfgShortcuts),
+        badWords: normalizeBadWords(parsed.customMessages?.badWords),
+        welcomeCard: normalizeWelcomeCard(parsed.customMessages?.welcomeCard, base.customMessages.welcomeCard),
       },
       timeouts: { ...base.timeouts, ...(parsed.timeouts || {}) },
     };
@@ -257,4 +304,5 @@ module.exports = {
   defaultCustomMessages,
   defaultLfgShortcuts,
   normalizeLfgShortcuts,
+  normalizeBadWords,
 };

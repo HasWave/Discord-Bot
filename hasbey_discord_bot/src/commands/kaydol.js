@@ -16,6 +16,11 @@ module.exports = {
     .setDescription('Ad soyad, sunucu takma adın ve yaş; Discord kullanıcı adın değişmez'),
 
   async execute(interaction) {
+    await showKaydolModal(interaction);
+  },
+};
+
+async function showKaydolModal(interaction) {
     if (!interaction.guild || !interaction.member) {
       await interaction.reply({ content: 'Bu komut sadece sunucuda kullanılabilir.', flags: EPHEMERAL });
       return;
@@ -71,5 +76,6 @@ module.exports = {
     );
 
     await interaction.showModal(modal);
-  },
-};
+}
+
+module.exports.showKaydolModal = showKaydolModal;

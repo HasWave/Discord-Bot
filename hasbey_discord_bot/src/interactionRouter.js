@@ -7,6 +7,7 @@ const { resolveRegistrationLogTargetId } = require('./lib/resolveChannels');
 const { ensureBotData } = require('./services/tempVoice');
 const { runKur } = require('./commands/kur');
 const { runYedekle } = require('./commands/yedekle');
+const { showKaydolModal } = require('./commands/kaydol');
 const { meHas, NEED_MANAGE } = require('./lib/permissions');
 const { updateLastRegisteredDisplay } = require('./services/channelStatus');
 
@@ -164,6 +165,11 @@ async function handleModalSubmit(interaction) {
 async function handleButton(interaction) {
   const id = interaction.customId;
   if (!id.startsWith('hby:')) return false;
+
+  if (id === 'hby:kaydol_open') {
+    await showKaydolModal(interaction);
+    return true;
+  }
 
   const [, action, kind] = id.split(':');
   if (action !== 'confirm' && action !== 'cancel') return false;

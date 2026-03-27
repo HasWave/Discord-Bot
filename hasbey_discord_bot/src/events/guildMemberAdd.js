@@ -1,10 +1,19 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { readGuildConfig } = require('../lib/storage');
 const { isGuildSetup } = require('../lib/guards');
 const { resolveGuestRoleId } = require('../lib/resolveRoles');
 const { resolveWelcomeChannelId } = require('../lib/resolveChannels');
 const { recordJoin } = require('../lib/stats');
 const { queueMemberCountUpdate } = require('../services/channelStatus');
+const { createWelcomeCard } = require('../services/welcomeCard');
+
+function parseHexColor(input, fallback = 0xfee75c) {
+  const raw = String(input || '')
+    .trim()
+    .replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{6}$/.test(raw)) return fallback;
+  return parseInt(raw, 16);
+}
 
 module.exports = async function onGuildMemberAdd(member) {
   recordJoin(member.guild.id, { userId: member.id, tag: member.user.tag });
@@ -32,7 +41,7 @@ module.exports = async function onGuildMemberAdd(member) {
   const lines = cfg.customMessages?.welcomeLines;
   const defaultDesc =
     'Hoş geldin! Sunucu odalarını görmek için önce kayıt olmalısın.\n\n' +
-    '**Kayıt:** `/kaydol` — formda **ad soyad**, **takma ad** ve **yaş** istenir. Sunucu adın **Takma ad | yaş** yapılması eklentiden açılıp kapatılabilir. Discord **kullanıcı adın** otomatik değişmez.\n\n' +
+    '**Kayıt:** aşağıdaki **Kayıt Ol** butonuna tıkla (veya `/kaydol`). Formda **ad soyad**, **takma ad** ve **yaş** istenir. Sunucu adın **Takma ad | yaş** yapılması eklentiden açılıp kapatılabilir. Discord **kullanıcı adın** otomatik değişmez.\n\n' +
     'Slash komutların kanalı: `/komutlar`';
   let description = defaultDesc;
   if (Array.isArray(lines) && lines.length > 0) {
@@ -44,11 +53,26 @@ module.exports = async function onGuildMemberAdd(member) {
     description = lines.map(sub).join('\n');
   }
 
+  const card = cfg.customMessages?.welcomeCard || {};
+  const imageUrl = String(card.imageUrl || '').trim();
   const embed = new EmbedBuilder()
-    .setTitle('👋 Hoş geldin')
+    .setTitle(String(card.title || '👋 Hoş geldin').slice(0, 120))
     .setDescription(description)
-    .setColor(0xfee75c)
+    .setColor(parseHexColor(card.color))
     .setTimestamp(new Date());
+  const files = [];
+  try {
+    const cardBuffer = await createWelcomeCard(member, cfg);
+    const imageFile = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
+    files.push(imageFile);
+    embed.setImage('attachment://welcome-card.png');
+  } catch {
+    if (imageUrl) embed.setImage(imageUrl);
+  }
 
-  await ch.send({ content: `${member}`, embeds: [embed] }).catch(() => {});
+  const registerRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('hby:kaydol_open').setLabel('Kayıt Ol').setStyle(ButtonStyle.Primary)
+  );
+
+  await ch.send({ content: `${member}`, embeds: [embed], components: [registerRow], files }).catch(() => {});
 };
