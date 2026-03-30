@@ -1,6 +1,9 @@
 /**
- * Home Assistant Supervisor: /data/options.json → data/guilds/<guild_id>.json birleştirme.
+ * Home Assistant Supervisor: /data/options.json (+ isteğe bağlı env) → data/guilds/<guild_id>.json birleştirme.
  * Yalnızca HA eklenti paketinde kullanılır; ana HasBEY bot deposunda yoktur.
+ *
+ * Misafir / kayıtlı rol: `bot_guest_role_id`, `bot_member_role_id` (config.yaml).
+ * Büyük harf veya yazım varyantları (ör. BOT_GUEST_ROLE_ID, BOT_GUEST_ROL_ID) da okunur.
  */
 
 const fs = require('fs');
@@ -24,13 +27,55 @@ const HA_CHANNEL_OPTIONS = [
   ['bot_player_category_id', 'playerCategoryId'],
 ];
 
-const HA_ROLE_OPTIONS = [
-  ['bot_member_role_id', 'memberRoleId'],
-  ['bot_guest_role_id', 'guestRoleId'],
+/** cfg.roles alanı → options.json anahtarları (sırayla) → env anahtarları */
+const HA_ROLE_BINDINGS = [
+  {
+    cfgKey: 'guestRoleId',
+    optionKeys: [
+      'bot_guest_role_id',
+      'BOT_GUEST_ROLE_ID',
+      'BOT_GUEST_ROL_ID',
+      'bot_guest_rol_id',
+    ],
+    envKeys: ['BOT_GUEST_ROLE_ID', 'BOT_GUEST_ROL_ID', 'bot_guest_role_id'],
+  },
+  {
+    cfgKey: 'memberRoleId',
+    optionKeys: [
+      'bot_member_role_id',
+      'BOT_MEMBER_ROLE_ID',
+      'BOT_MEMBER_ROL_ID',
+      'bot_member_rol_id',
+    ],
+    envKeys: ['BOT_MEMBER_ROLE_ID', 'BOT_MEMBER_ROL_ID', 'bot_member_role_id'],
+  },
 ];
 
 function isSnowflake(s) {
-  return /^\d{17,22}$/.test(String(s).trim());
+  return /^\d{10,25}$/.test(String(s).trim());
+}
+
+function pickSnowflakeFromOptAndEnv(opt, optionKeys, envKeys) {
+  if (opt && typeof opt === 'object') {
+    for (const k of optionKeys) {
+      if (!(k in opt)) continue;
+      const v = String(opt[k] ?? '').trim();
+      if (isSnowflake(v)) return v;
+    }
+  }
+  for (const k of envKeys || []) {
+    const raw = process.env[k];
+    if (raw == null) continue;
+    const v = String(raw).trim();
+    if (isSnowflake(v)) return v;
+  }
+  return '';
+}
+
+function resolveGuildIdFromHa(opt) {
+  const fromOpt = pickSnowflakeFromOptAndEnv(opt, ['guild_id', 'GUILD_ID'], ['GUILD_ID', 'guild_id']);
+  if (fromOpt) return fromOpt;
+  return '';
 }
 
 function applyHomeAssistantOptionsMerge() {
@@ -47,8 +92,13 @@ function applyHomeAssistantOptionsMerge() {
     return;
   }
 
-  const guildId = String(opt.guild_id || process.env.GUILD_ID || '').trim();
-  if (!isSnowflake(guildId)) {
+  const guildId = resolveGuildIdFromHa(opt);
+  if (!guildId) {
+    console.warn(
+      chalk.yellow(
+        '[HA Supervisor] options.json okundu ancak geçerli guild_id yok; kanal/rol birleştirmesi atlandı.'
+      )
+    );
     return;
   }
 
@@ -71,12 +121,9 @@ function applyHomeAssistantOptionsMerge() {
     }
   }
 
-  for (const [optKey, cfgKey] of HA_ROLE_OPTIONS) {
-    if (!(optKey in opt)) {
-      continue;
-    }
-    const v = String(opt[optKey] ?? '').trim();
-    if (!v || !isSnowflake(v)) {
+  for (const { cfgKey, optionKeys, envKeys } of HA_ROLE_BINDINGS) {
+    const v = pickSnowflakeFromOptAndEnv(opt, optionKeys, envKeys);
+    if (!v) {
       continue;
     }
     if (roles[cfgKey] !== v) {
@@ -91,7 +138,9 @@ function applyHomeAssistantOptionsMerge() {
 
   writeGuildConfig(guildId, { ...cfg, channels, roles });
   console.log(
-    chalk.cyan(`[HA Supervisor] Eklenti yapılandırması → data/guilds/${guildId}.json birleştirildi.`)
+    chalk.cyan(
+      `[HA Supervisor] Eklenti yapılandırması → data/guilds/${guildId}.json birleştirildi (kanal/rol ID).`
+    )
   );
 }
 

@@ -15,6 +15,72 @@ function toDiscordChannelType(t) {
   return null;
 }
 
+function filterAssignableGuildRoleIds(guild, roleIds) {
+  return roleIds.filter((id) => {
+    if (id === guild.id) return false;
+    const r = guild.roles.cache.get(id);
+    if (!r || r.managed) return false;
+    return true;
+  });
+}
+
+/** Yedekteki yönetilebilir roller + üyede halihazırda olan yönetilen roller (boost vb.). */
+function mergeMemberRoleTargets(guild, member, assignableFromBackup) {
+  const ids = new Set(assignableFromBackup);
+  for (const r of member.roles.cache.values()) {
+    if (r.id === guild.id) continue;
+    if (r.managed) ids.add(r.id);
+  }
+  return [...ids];
+}
+
+/**
+ * @param {import('discord.js').Guild} guild
+ * @param {unknown[]} membersSnap
+ * @param {Map<string,string>} roleMap
+ */
+async function restoreMemberRolesFromBackup(guild, membersSnap, roleMap) {
+  const stats = { applied: 0, skipped: 0, failed: 0 };
+  if (!Array.isArray(membersSnap) || membersSnap.length === 0) return stats;
+
+  for (const entry of membersSnap) {
+    if (!entry || typeof entry !== 'object') continue;
+    const userId = String(entry.userId ?? '');
+    if (!/^\d{10,25}$/.test(userId)) continue;
+
+    const oldRoleIds = Array.isArray(entry.roleIds) ? entry.roleIds.map((x) => String(x)) : [];
+    const mapped = [
+      ...new Set(oldRoleIds.map((rid) => roleMap.get(rid)).filter((id) => id && id !== guild.id)),
+    ];
+    const assignable = filterAssignableGuildRoleIds(guild, mapped);
+
+    const hadNonEveryoneRoles = oldRoleIds.length > 0;
+    if (hadNonEveryoneRoles && assignable.length === 0) {
+      stats.skipped++;
+      await sleep(50);
+      continue;
+    }
+
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) {
+      stats.skipped++;
+      continue;
+    }
+
+    const target = mergeMemberRoleTargets(guild, member, assignable);
+    try {
+      await member.roles.set(target, 'HasBEY yedekten uye rolleri');
+      stats.applied++;
+    } catch (e) {
+      console.warn('[restore] uye rolu:', userId, e.message);
+      stats.failed++;
+    }
+    await sleep(250);
+  }
+
+  return stats;
+}
+
 function mapPermissionOverwrites(overwrites, guild, roleMap, oldGuildId) {
   const out = [];
   for (const ow of overwrites || []) {
@@ -36,8 +102,8 @@ function mapPermissionOverwrites(overwrites, guild, roleMap, oldGuildId) {
 }
 
 /**
- * sunucu-yedek.json içeriğini yeni sunucuda yeniden oluşturur (rol/kanal + izinler).
- * @returns {{ roleMap: Map<string,string>, channelMap: Map<string,string> }}
+ * sunucu-yedek.json içeriğini yeni sunucuda yeniden oluşturur (rol/kanal + izinler + isteğe bağlı üye rolleri).
+ * @returns {{ roleMap: Map<string,string>, channelMap: Map<string,string>, memberRestore: { applied: number, skipped: number, failed: number } }}
  */
 async function restoreGuildFromBackup(guild, payload) {
   const oldGuildId = String(payload.guildId || '');
@@ -166,7 +232,9 @@ async function restoreGuildFromBackup(guild, payload) {
 
   await guild.channels.fetch().catch(() => {});
 
-  return { roleMap, channelMap };
+  const memberRestore = await restoreMemberRolesFromBackup(guild, payload.members, roleMap);
+
+  return { roleMap, channelMap, memberRestore };
 }
 
 function remapSnowflakeDeep(obj, roleMap, channelMap, oldGuildId, newGuildId) {

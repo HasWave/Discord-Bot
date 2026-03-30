@@ -39,3 +39,10 @@ Yerel add-on: sadece hasbey_discord_bot/ klasörünü /addons/ altına kopyala,
 Derleme hatasında: Supervisor günlükleri (ha supervisor logs).
   build_from alaninda kisa "node:22-alpine" KULLANMA — Supervisor reddeder;
   "docker.io/library/node:22-alpine" tam yol kullanilir (npm icin gerekli).
+
+Yapılandırma → bot_guest_role_id / bot_member_role_id:
+  Eklenti açılışta bunları data/guilds/<guild_id>.json içine yazar. Bot yeni üyeye
+  misafir rolünü (guestRoleId), /kaydol ile kayıtlı rolü (memberRoleId) verir ve
+  misafiri kaldırır. Misafir rol ID’si, Discord’da “Sunucu durumu” kategorisi ve
+  misafir bot komut kanalı izinlerinde kullandığınız rol ile aynı olmalı.
+  Büyük harf (BOT_GUEST_ROLE_ID vb.) veya yazım varyantları options/env ile de okunur.

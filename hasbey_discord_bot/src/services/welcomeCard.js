@@ -77,9 +77,9 @@ async function createWelcomeCard(member, cfg) {
   ctx.arc(avX + avSize / 2, avY + avSize / 2, avSize / 2 + 4, 0, Math.PI * 2);
   ctx.stroke();
 
-  const title = escapeText(card.title || 'Sunucuya katildi', 80);
+  const title = escapeText(card.title || 'Sunucuya katıldı', 80);
   const username = escapeText(member.displayName || member.user.username, 48);
-  const subtitle = `@${escapeText(member.user.username, 32)} aramiza hos geldi`;
+  const subtitle = `@${escapeText(member.user.username, 32)} aramıza hoş geldi`;
 
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 56px sans-serif';

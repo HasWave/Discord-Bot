@@ -8,7 +8,7 @@ const { ensureBotData } = require('../services/tempVoice');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('yedekle')
-    .setDescription('Sunucu roller/kanallar/izinleri JSON olarak dışa aktarır (onay ister)'),
+    .setDescription('Sunucu roller/kanallar/izinleri ve üye rolleri JSON olarak dışa aktarır (onay ister)'),
 
   async execute(interaction) {
     if (!interaction.guild || !interaction.member) {
@@ -29,7 +29,7 @@ module.exports = {
     await interaction.editReply({
       content:
         '⚠️ Emin Misiniz ?\n' +
-        'Kanallar ve Rolleri Yedeklemeye Onay Veriyor Musunuz ?',
+        'Kanallar, roller, izinler ve üye–rol atamalarını yedeklemeye onay veriyor musunuz?',
       flags: EPHEMERAL,
       components: [
         new ActionRowBuilder().addComponents(

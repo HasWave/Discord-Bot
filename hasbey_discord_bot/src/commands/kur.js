@@ -109,13 +109,18 @@ module.exports.runKur = async (interaction) => {
   if (payload) {
     try {
       await deleteAllChannelsAndRoles(interaction.guild);
-      const { roleMap, channelMap } = await restoreGuildFromBackup(interaction.guild, payload);
+      const { roleMap, channelMap, memberRestore } = await restoreGuildFromBackup(interaction.guild, payload);
       const next = mergeConfigAfterRestore(cfg, gid, payload, roleMap, channelMap);
       writeGuildConfig(gid, next);
       await grantPostSetupRoles(interaction.guild, next, interaction.user.id);
+      let memberLine = '';
+      if (Array.isArray(payload.members) && payload.members.length > 0 && memberRestore) {
+        memberLine = `\n• Üye rolleri: ${memberRestore.applied} güncellendi, ${memberRestore.skipped} atlandı (sunucuda yok / eşleşmeyen rol), ${memberRestore.failed} hata.`;
+      }
       await interaction.followUp({
         content:
-          '✅ **Yedekten kurulum bitti.** Roller/kanallar temizlenip yedekten geri yüklendi, kanal/rol ID alanlari guncellendi.',
+          '✅ **Yedekten kurulum bitti.** Roller/kanallar temizlenip yedekten geri yüklendi, kanal/rol ID alanlari guncellendi.' +
+          memberLine,
         flags: EPHEMERAL,
       });
     } catch (e) {

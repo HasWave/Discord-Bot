@@ -18,12 +18,36 @@ async function deleteAllChannelsAndRoles(guild) {
   }
 }
 
-async function createRole(guild, name, permissions = 0n, hoist = true) {
+/**
+ * @param {boolean} [hoist=false] Üye listesinde rol başlığı altında gruplama. Açıkken misafirler diğer rollerin aktif üyelerini ayrı bloklarda net görür; kapalı tutmak gizliliği artırır (isimler yine listelenebilir — Discord bunu tamamen kapatmıyor).
+ */
+async function createRole(guild, name, permissions = 0n, hoist = false) {
   return guild.roles.create({
     name,
     permissions,
     hoist,
     reason: 'HasBEY varsayilan sablon',
+  });
+}
+
+/** Aynı rol için çakışan overwrite satırlarını birleştirir (ör. görüntüle kategori + bağlan ses). */
+function mergePermissionOverwrites(lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const ow of list) {
+      const cur = map.get(ow.id) || { id: ow.id };
+      const allow = new Set(cur.allow || []);
+      const deny = new Set(cur.deny || []);
+      for (const a of ow.allow || []) allow.add(a);
+      for (const d of ow.deny || []) deny.add(d);
+      map.set(ow.id, { id: ow.id, allow: [...allow], deny: [...deny] });
+    }
+  }
+  return [...map.values()].map(({ id, allow, deny }) => {
+    const o = { id };
+    if (allow.length) o.allow = allow;
+    if (deny.length) o.deny = deny;
+    return o;
   });
 }
 
@@ -53,13 +77,24 @@ async function installDefaultTemplate(guild, botOwnerId) {
   roles.botTag = await createRole(guild, '🤖 ʙᴏᴛ');
   roles.hanim = await createRole(guild, '🧸 ʜᴀɴıᴍ ᴇꜰᴇɴᴅɪʟᴇʀ');
   roles.drama = await createRole(guild, '🎭 ᴅʀᴀᴍᴀ Qᴜᴇɴ');
-  /** ᴛᴇꜱ̧ᴋɪʟᴀᴛ / ᴍɪꜱᴀꜰɪʀ: üye listesinde çevrimiçilerden ayrı gösterme kapalı (hoist false) */
-  roles.member = await createRole(guild, '🎖️ ᴛᴇꜱ̧ᴋɪʟᴀᴛ', 0n, false);
-  roles.guest = await createRole(guild, TEMPLATE_GUEST_ROLE_NAME, 0n, false);
+  /** Teşkilat ve misafir: üye listesinde ayrı rol başlığı (çevrimiçi olduklarında kendi bloklarında görünür). */
+  roles.member = await createRole(guild, '🎖️ ᴛᴇꜱ̧ᴋɪʟᴀᴛ', 0n, true);
+  roles.guest = await createRole(guild, TEMPLATE_GUEST_ROLE_NAME, 0n, true);
 
   const meId = guild.members.me?.id;
-  const baseVisible = [{ id: roles.guest.id, deny: [PermissionFlagsBits.ViewChannel] }];
-  const guestVisible = [{ id: roles.guest.id, allow: [PermissionFlagsBits.ViewChannel] }];
+
+  const readonlyTextDenies = [
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.SendMessagesInThreads,
+    PermissionFlagsBits.CreatePublicThreads,
+    PermissionFlagsBits.CreatePrivateThreads,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.EmbedLinks,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+    PermissionFlagsBits.UseExternalStickers,
+  ];
+
   const ownerAdminOnly = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: roles.owner.id, allow: [PermissionFlagsBits.ViewChannel] },
@@ -80,26 +115,62 @@ async function installDefaultTemplate(guild, botOwnerId) {
     roles.destek.id,
     roles.etkinlik.id,
   ];
-  const textReadonlyBase = {
-    id: guild.roles.everyone.id,
-    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-    deny: [
-      PermissionFlagsBits.SendMessages,
-      PermissionFlagsBits.SendMessagesInThreads,
-      PermissionFlagsBits.CreatePublicThreads,
-      PermissionFlagsBits.CreatePrivateThreads,
-      PermissionFlagsBits.AttachFiles,
-      PermissionFlagsBits.EmbedLinks,
-      PermissionFlagsBits.AddReactions,
-      PermissionFlagsBits.UseExternalEmojis,
-      PermissionFlagsBits.UseExternalStickers,
-    ],
-  };
+
+  /** Kanalları görmesi gereken personel / özel roller (üyelik dışı). */
+  const staffChannelViewIds = [
+    roles.owner.id,
+    roles.admin.id,
+    roles.mod.id,
+    roles.trialMod.id,
+    roles.destek.id,
+    roles.etkinlik.id,
+    roles.streamer.id,
+    roles.developer.id,
+    roles.vip.id,
+    roles.botTag.id,
+    roles.hanim.id,
+    roles.drama.id,
+  ];
+  const staffChannelViewAllow = staffChannelViewIds.map((id) => ({
+    id,
+    allow: [PermissionFlagsBits.ViewChannel],
+  }));
+
+  /**
+   * Üye alanları: @everyone ve misafir görünmez; kayıtlı üye + personel görür.
+   * Yalnızca “misafire red” kullanmak, sunucuda @everyone görüntüleme açıkken yetersiz kalabiliyordu.
+   */
+  const memberOnlyCategory = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: roles.guest.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: roles.member.id, allow: [PermissionFlagsBits.ViewChannel] },
+    ...staffChannelViewAllow,
+  ];
+
+  /** Kayıt / hoş geldin kategorisi: misafir ve üye görür; ham @everyone görmez. */
+  const registrationCategoryOverwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: roles.guest.id, allow: [PermissionFlagsBits.ViewChannel] },
+    { id: roles.member.id, allow: [PermissionFlagsBits.ViewChannel] },
+    ...staffChannelViewAllow,
+  ];
+
   const restrictedTextOverwrites = [
-    textReadonlyBase,
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: roles.guest.id, deny: [PermissionFlagsBits.ViewChannel] },
+    {
+      id: roles.member.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
+      ],
+      deny: readonlyTextDenies,
+    },
     ...staffWriteRoleIds.map((id) => ({
       id,
       allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.SendMessagesInThreads,
         PermissionFlagsBits.AttachFiles,
@@ -108,22 +179,36 @@ async function installDefaultTemplate(guild, botOwnerId) {
       ],
     })),
   ];
+
   const notifyReadonlyOverwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: roles.guest.id, deny: [PermissionFlagsBits.ViewChannel] },
     {
-      id: guild.roles.everyone.id,
+      id: roles.member.id,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-      deny: [
+      deny: readonlyTextDenies,
+    },
+    {
+      id: roles.botTag.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
         PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.SendMessagesInThreads,
-        PermissionFlagsBits.CreatePublicThreads,
-        PermissionFlagsBits.CreatePrivateThreads,
-        PermissionFlagsBits.AttachFiles,
         PermissionFlagsBits.EmbedLinks,
-        PermissionFlagsBits.AddReactions,
-        PermissionFlagsBits.UseExternalEmojis,
-        PermissionFlagsBits.UseExternalStickers,
+        PermissionFlagsBits.AttachFiles,
       ],
     },
+    ...staffWriteRoleIds.map((id) => ({
+      id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.AddReactions,
+      ],
+    })),
   ];
   if (meId) {
     notifyReadonlyOverwrites.push({
@@ -137,7 +222,32 @@ async function installDefaultTemplate(guild, botOwnerId) {
       ],
     });
   }
-  const fullyReadonlyTextOverwrites = [textReadonlyBase];
+
+  /** Gelen-var: kategori izinlerine ek olarak gönderim kapalı. */
+  const registrationGelenReadonlyOverwrites = [
+    {
+      id: roles.guest.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: readonlyTextDenies,
+    },
+    {
+      id: roles.member.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: readonlyTextDenies,
+    },
+    ...staffWriteRoleIds.map((id) => ({
+      id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.SendMessagesInThreads,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+      ],
+    })),
+  ];
   const lockedStatVoiceOverwrites = [
     {
       id: guild.roles.everyone.id,
@@ -151,13 +261,13 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catStatus = await create({
     name: '📶 ꜱᴜɴᴜᴄᴜ ᴅᴜʀᴜᴍᴜ',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: guestVisible,
+    permissionOverwrites: registrationCategoryOverwrites,
   });
   channels.gelenVar = await create({
     name: '「🔔」ɢᴇʟᴇɴ-ᴠᴀʀ',
     type: ChannelType.GuildText,
     parent: catStatus.id,
-    permissionOverwrites: fullyReadonlyTextOverwrites,
+    permissionOverwrites: registrationGelenReadonlyOverwrites,
   });
   await guild
     .setSystemChannel(channels.gelenVar.id, 'HasBEY sistem mesaj kanali')
@@ -179,7 +289,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catHasbey = await create({
     name: '👑 ʜᴀꜱʙᴇʏ',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   channels.log = await create({
     name: '「💾」ʟᴏɢ-ᴋᴀʏɪᴛ',
@@ -209,7 +319,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catChat = await create({
     name: '💬 ɢᴇɴᴇʟ ᴄʜᴀᴛ',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   await create({ name: '「💬」sᴏʜʙᴇᴛ', type: ChannelType.GuildText, parent: catChat.id });
   channels.mainBot = await create({ name: '「🤖」ʙᴏᴛ-ᴋᴏᴍᴜᴛ', type: ChannelType.GuildText, parent: catChat.id });
@@ -220,7 +330,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catYetkili = await create({
     name: '⭐ ʏᴇᴛᴋɪʟɪ ᴏᴅᴀʟᴀʀı',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   const staffOnlyOverwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -266,7 +376,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catStream = await create({
     name: '🛰️ ꜱᴛʀᴇᴀᴍ ᴍᴏᴅᴇ',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   const streamDeniedRoleIds = [
     roles.etkinlik.id,
@@ -283,23 +393,28 @@ async function installDefaultTemplate(guild, botOwnerId) {
     id,
     deny: [PermissionFlagsBits.Connect],
   }));
+  /** Yalnızca bağlantı redleri bırakılırsa bazı istemcilerde kategori mirası yeterli olmayabiliyor; misafir için görüntülemeyi kanalda da netleştiriyoruz. */
+  const streamVoicePermissionOverwrites = mergePermissionOverwrites([
+    memberOnlyCategory,
+    streamOverwrites,
+  ]);
   await create({
     name: '「🛰️」ʏᴀʏɪɴ ᴋᴀɴᴀʟɪ¹',
     type: ChannelType.GuildVoice,
     parent: catStream.id,
-    permissionOverwrites: streamOverwrites,
+    permissionOverwrites: streamVoicePermissionOverwrites,
   });
   await create({
     name: '「🛰️」ʏᴀʏɪɴ ᴋᴀɴᴀʟɪ²',
     type: ChannelType.GuildVoice,
     parent: catStream.id,
-    permissionOverwrites: streamOverwrites,
+    permissionOverwrites: streamVoicePermissionOverwrites,
   });
 
   const catVoice = await create({
     name: '🎙️ꜱᴇꜱ ᴋᴀɴᴀʟʟᴀʀı',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   await create({ name: '「🎙️」sᴇsʟɪ sᴏʜʙᴇᴛ¹', type: ChannelType.GuildVoice, parent: catVoice.id });
   await create({ name: '「🎙️」sᴇsʟɪ sᴏʜʙᴇᴛ²', type: ChannelType.GuildVoice, parent: catVoice.id });
@@ -324,14 +439,14 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catTemp = await create({
     name: '🔐 ᴏ̈ᴢᴇʟ ᴏᴅᴀʟᴀʀ',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   channels.lobby = await create({ name: '🗝️ ʙᴀɴᴀ ᴛɪᴋʟᴀ', type: ChannelType.GuildVoice, parent: catTemp.id });
 
   const catGame = await create({
     name: '🕹️ᴏʏᴜɴ ᴏᴅᴀʟᴀʀı',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   channels.araCmd = await create({ name: 'ʙᴏᴛ-ᴋᴏᴍᴜᴛ', type: ChannelType.GuildText, parent: catGame.id });
   channels.araNotify = await create({
@@ -349,7 +464,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
   const catAfk = await create({
     name: '💤 ᴅıꜱ̧ᴀʀᴅᴀ',
     type: ChannelType.GuildCategory,
-    permissionOverwrites: baseVisible,
+    permissionOverwrites: memberOnlyCategory,
   });
   channels.afk = await create({ name: '「🥱」ʙɪʀᴀᴢ-ᴍᴏʟᴀ', type: ChannelType.GuildVoice, parent: catAfk.id });
 

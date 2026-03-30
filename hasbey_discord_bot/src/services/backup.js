@@ -1,5 +1,6 @@
 /**
- * Sunucu yapısı dışa aktarımı (kanal/rol izinleri). Mesaj içeriği dahil değildir.
+ * Sunucu yapısı dışa aktarımı (kanal/rol izinleri + üye–rol eşlemesi). Mesaj içeriği dahil değildir.
+ * Üye listesi için `GuildMembers` intent ve büyük sunucularda `guild.members.fetch()` süresi gerekir.
  */
 async function exportGuildSnapshot(guild) {
   const roles = guild.roles.cache
@@ -36,12 +37,24 @@ async function exportGuildSnapshot(guild) {
       })),
     }));
 
+  try {
+    await guild.members.fetch();
+  } catch (e) {
+    console.warn('[backup] guild.members.fetch:', e.message);
+  }
+
+  const members = [...guild.members.cache.values()].map((m) => ({
+    userId: m.id,
+    roleIds: [...m.roles.cache.keys()].filter((id) => id !== guild.id),
+  }));
+
   return {
     exportedAt: new Date().toISOString(),
     guildId: guild.id,
     guildName: guild.name,
     roles,
     channels,
+    members,
   };
 }
 
