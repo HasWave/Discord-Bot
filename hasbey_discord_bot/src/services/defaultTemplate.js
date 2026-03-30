@@ -1,6 +1,9 @@
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { defaultFeatures, defaultCustomMessages } = require('../lib/storage');
 
+/** Varsayılan şablonda oluşturulan misafir rolünün tam adı (ID kurulumda Discord’dan atanır). */
+const TEMPLATE_GUEST_ROLE_NAME = '👤 ᴍɪꜱᴀꜰɪʀ';
+
 async function deleteAllChannelsAndRoles(guild) {
   const channels = [...guild.channels.cache.values()];
   for (const ch of channels) {
@@ -52,7 +55,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
   roles.drama = await createRole(guild, '🎭 ᴅʀᴀᴍᴀ Qᴜᴇɴ');
   /** ᴛᴇꜱ̧ᴋɪʟᴀᴛ / ᴍɪꜱᴀꜰɪʀ: üye listesinde çevrimiçilerden ayrı gösterme kapalı (hoist false) */
   roles.member = await createRole(guild, '🎖️ ᴛᴇꜱ̧ᴋɪʟᴀᴛ', 0n, false);
-  roles.guest = await createRole(guild, '👤 ᴍɪꜱᴀꜰɪʀ', 0n, false);
+  roles.guest = await createRole(guild, TEMPLATE_GUEST_ROLE_NAME, 0n, false);
 
   const meId = guild.members.me?.id;
   const baseVisible = [{ id: roles.guest.id, deny: [PermissionFlagsBits.ViewChannel] }];
@@ -397,7 +400,11 @@ async function installDefaultTemplate(guild, botOwnerId) {
       announcementChannelId: channels.ann.id,
     },
     features: defaultFeatures(),
-    timeouts: { afkMinutes: 30 },
+    timeouts: {
+      afkMinutes: 30,
+      guestRegisterReminderDeleteMinutes: 5,
+      guestRegisterReminderStyle: 'dm_once',
+    },
     customMessages: defaultCustomMessages(),
   };
 }
@@ -405,4 +412,5 @@ async function installDefaultTemplate(guild, botOwnerId) {
 module.exports = {
   deleteAllChannelsAndRoles,
   installDefaultTemplate,
+  TEMPLATE_GUEST_ROLE_NAME,
 };

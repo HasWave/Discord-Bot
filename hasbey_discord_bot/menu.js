@@ -28,7 +28,10 @@ const {
   setEnvJsonKeyUpper,
   stripEnvJsonKeysUpper,
   envJsonPath,
+  readEnvJsonObject,
+  writeEnvJsonObject,
 } = require('./src/lib/envJson');
+const { TEMPLATE_GUEST_ROLE_NAME } = require('./src/services/defaultTemplate');
 
 const BOT_JS = path.join(ROOT, 'bot.js');
 const DEPLOY_COMMANDS_JS = path.join(ROOT, 'src', 'deploy-commands.js');
@@ -63,7 +66,10 @@ const CHANNEL_FIELD_LIST = [
 
 /** cfg.roles — Discord Ayarları [5] */
 const ROLE_FIELD_LIST = [
-  ['guestRoleId', 'Misafir rol ID (kayıtsız / yeni girenlere verilir)'],
+  [
+    'guestRoleId',
+    'Misafir rol ID (şablon/kurulum sonrası otomatik; boşsa env DEFAULT_GUEST_ROLE_ID veya rol adı)',
+  ],
   ['memberRoleId', 'Kayıtlı rol ID (/kaydol, geçici oda — boşsa rol adıyla çözülür)'],
 ];
 
@@ -79,6 +85,8 @@ const FEATURE_LABELS = {
   afkMover: 'Süresi Dolunca AFK Ses Kanalına Taşıma',
   triggerReplies: 'Tetikleyici Yanıtlar',
   wordFilter: 'Kelime Filtresi (sil + uyar)',
+  guestSlashRegisterReminder:
+    'Misafir bot komut kanalı: kayıt hatırlatması (varsayılan: özelden 1 kez; isteğe kanal + süre)',
 };
 
 /** Soru beklerken bot satırlarını biriktir (Seçim: ile log karışmasın) */
@@ -1503,8 +1511,10 @@ async function submenuEditChannelIds(rl, gid) {
 }
 
 async function submenuEditRoleIds(rl, gid) {
+  loadProjectEnv(ROOT);
   const cfg = readGuildConfig(gid);
   cfg.roles = { ...defaultGuildRecord().roles, ...(cfg.roles || {}) };
+  const envGuestHint = getFromEnvJson(ROOT, 'DEFAULT_GUEST_ROLE_ID');
   console.log(
     chalk.dim(
       '\n  Discord: Sunucu Ayarları → Roller → rolü sağ tık → Rol ID’sini Kopyala (Geliştirici modu açık olmalı).\n'
@@ -1515,7 +1525,7 @@ async function submenuEditRoleIds(rl, gid) {
     const curStr = cur != null && cur !== '' ? String(cur) : '';
     const emptyHint =
       field === 'guestRoleId'
-        ? '( Boş — ID yoksa "Misafir" rol adıyla çözülür; o da yoksa verilmez )'
+        ? `( Boş — env DEFAULT_GUEST_ROLE_ID: ${envGuestHint || 'yok'}; yoksa "${cfg.roles.guestRoleName}" adıyla çözülür )`
         : '( Boş — "Kayıtlı" rol adıyla çözülür )';
     console.log(chalk.cyan(`\n${label}`));
     console.log(chalk.dim(`Şu an: ${curStr || emptyHint}`));
@@ -1626,6 +1636,12 @@ async function submenuGeneral(rl) {
     console.log(chalk.white('[4] - Özet (channels + features + roles)'));
     console.log(chalk.white('[5] - Rol ID'));
     console.log(chalk.white('[6] - AFK Süresi (dakika)'));
+    console.log(
+      chalk.white('[7] - Misafir kayıt hatırlatması: özelden 1 kez veya kanalda (süreli silinen mesaj)')
+    );
+    console.log(
+      chalk.white('[8] - Varsayılan misafir rol ID (env.json — guild’de guestRoleId boşsa kullanılır)')
+    );
     console.log(chalk.white(''));
     console.log(chalk.white('[0] - Ana Menü\n'));
     const c = (await prompt(rl)).trim();
@@ -1680,6 +1696,81 @@ async function submenuGeneral(rl) {
       cfg.timeouts = { ...(cfg.timeouts || {}), afkMinutes: n };
       writeGuildConfig(g, cfg);
       console.log(chalk.green('✅ AFK suresi guncellendi.\n'));
+      continue;
+    }
+    if (c === '7') {
+      const cfg = readGuildConfig(g);
+      const styleCur = cfg.timeouts?.guestRegisterReminderStyle === 'channel' ? 'channel' : 'dm_once';
+      const rawMin = Number(cfg.timeouts?.guestRegisterReminderDeleteMinutes ?? 5);
+      const minCur = rawMin === 10 || rawMin === 15 ? rawMin : 5;
+      console.log(chalk.cyan('\nMisafir kayit hatirlatmasi'));
+      console.log(
+        chalk.dim(
+          `Su an: ${styleCur === 'dm_once' ? 'Özelden 1 kez (kanal kirletilmez)' : `Kanalda, ${minCur} dk sonra silinen mesaj`}\n`
+        )
+      );
+      console.log(chalk.dim('  [1] Özelden 1 kez (önerilen)'));
+      console.log(chalk.dim('  [2] Kanalda hatırlat (mesaj süre sonunda silinir)\n'));
+      const vStyle = (await question(rl, `${ANSI_GREEN}Secim (1-2)${ANSI_RESET}: `)).trim();
+      if (vStyle === '1') {
+        cfg.timeouts = { ...(cfg.timeouts || {}), guestRegisterReminderStyle: 'dm_once' };
+        writeGuildConfig(g, cfg);
+        console.log(chalk.green('✅ Hatırlatma: özel mesaj, kullanıcı başına yalnızca 1 kez.\n'));
+        continue;
+      }
+      if (vStyle !== '2') {
+        console.log(chalk.red('❌ 1 veya 2 girin.\n'));
+        continue;
+      }
+      console.log(chalk.dim('  Kanal mesajı silinme süresi: [1] 5 dk   [2] 10 dk   [3] 15 dk\n'));
+      const v = (await question(rl, `${ANSI_GREEN}Secim (1-3)${ANSI_RESET}: `)).trim();
+      if (!['1', '2', '3'].includes(v)) {
+        console.log(chalk.red('❌ 1, 2 veya 3 girin.\n'));
+        continue;
+      }
+      const choice = v === '2' ? 10 : v === '3' ? 15 : 5;
+      cfg.timeouts = {
+        ...(cfg.timeouts || {}),
+        guestRegisterReminderStyle: 'channel',
+        guestRegisterReminderDeleteMinutes: choice,
+      };
+      writeGuildConfig(g, cfg);
+      console.log(
+        chalk.green(`✅ Hatırlatma: kanalda, mesaj ${choice} dk sonra silinir.\n`)
+      );
+      continue;
+    }
+    if (c === '8') {
+      loadProjectEnv(ROOT);
+      const cur = getFromEnvJson(ROOT, 'DEFAULT_GUEST_ROLE_ID');
+      console.log(chalk.cyan('\nVarsayılan misafir rol ID (env.json)'));
+      console.log(
+        chalk.dim(
+          'Guild JSON’da `guestRoleId` boşken bot bu snowflake’i kullanır. `/start` veya `/kur` ile şablon kurulduğunda gerçek rol ID’si dosyaya yazılır (öncelik guild’dedir).'
+        )
+      );
+      console.log(chalk.dim(`Şablon misafir rol adı: ${TEMPLATE_GUEST_ROLE_NAME}`));
+      console.log(chalk.dim(`Şu an env: ${cur || '(tanımlı değil)'}\n`));
+      console.log(chalk.dim('Enter = atla   - = env anahtarını sil\n'));
+      const v = (await question(rl, `${ANSI_GREEN}Yeni rol snowflake${ANSI_RESET}: `)).trim();
+      if (v === '') continue;
+      if (v === '-') {
+        stripEnvJsonKeysUpper(ROOT, ['DEFAULT_GUEST_ROLE_ID']);
+        const obj = readEnvJsonObject(ROOT);
+        if ('defaultGuestRoleId' in obj) {
+          delete obj.defaultGuestRoleId;
+          writeEnvJsonObject(ROOT, obj);
+        }
+        delete process.env.DEFAULT_GUEST_ROLE_ID;
+        console.log(chalk.green('✅ DEFAULT_GUEST_ROLE_ID kaldırıldı.\n'));
+        continue;
+      }
+      if (!/^\d{10,25}$/.test(v)) {
+        console.log(chalk.red('❌ Geçerli bir rol snowflake girin.\n'));
+        continue;
+      }
+      setEnvJsonKeyUpper(ROOT, 'DEFAULT_GUEST_ROLE_ID', v);
+      console.log(chalk.green('✅ env.json güncellendi. Çalışan bot süreci varsa yeniden başlatın.\n'));
       continue;
     }
     console.log(chalk.red('❌ Geçersiz seçim.\n'));

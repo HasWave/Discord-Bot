@@ -10,6 +10,7 @@ const { runYedekle } = require('./commands/yedekle');
 const { showKaydolModal } = require('./commands/kaydol');
 const { meHas, NEED_MANAGE } = require('./lib/permissions');
 const { updateLastRegisteredDisplay } = require('./services/channelStatus');
+const { clearGuestRegisterDmOnce } = require('./lib/guestRegisterDmOnceState');
 
 function pendingKey(guildId, userId) {
   return `${guildId}:${userId}`;
@@ -103,6 +104,8 @@ async function handleModalSubmit(interaction) {
     await interaction.reply({ content: 'Rol verilemedi (rol hiyerarşisi / yetki).', flags: EPHEMERAL });
     return true;
   }
+
+  clearGuestRegisterDmOnce(interaction.guild.id, interaction.user.id);
 
   const useNickAge = cfg.features?.registrationNickAgeFormat !== false;
   const appliedServerNick = useNickAge ? buildNicknameNickAge(nick, ageNum) : null;

@@ -1,5 +1,10 @@
 const { readGuildConfig } = require('../lib/storage');
 const { isGuildSetup } = require('../lib/guards');
+const { resolveGuestRoleId } = require('../lib/resolveRoles');
+const {
+  hasReceivedGuestRegisterDm,
+  markReceivedGuestRegisterDm,
+} = require('../lib/guestRegisterDmOnceState');
 const {
   postTeamSearchAnnouncement,
   LFG_HINT_TEAMS,
@@ -8,6 +13,82 @@ const {
 
 const replyCooldownMs = 2500;
 const lastReply = new Map();
+
+/** Kanal modunda: aynı üyeye kısa aralıkla tekrar yanıt vermemek için */
+const guestRegisterReminderCooldownMs = 5 * 60 * 1000;
+const guestRegisterReminderLast = new Map();
+
+function normalizeGuestReminderDeleteMinutes(raw) {
+  const n = Number(raw);
+  if (n === 10 || n === 15) return n;
+  return 5;
+}
+
+function guestRegisterReminderStyle(cfg) {
+  return cfg.timeouts?.guestRegisterReminderStyle === 'channel' ? 'channel' : 'dm_once';
+}
+
+async function maybeGuestSlashRegisterReminder(message, cfg) {
+  if (!isGuildSetup(cfg)) return;
+  if (cfg.features?.guestSlashRegisterReminder === false) return;
+  const guestChId = cfg.channels?.guestSlashCommandsChannelId
+    ? String(cfg.channels.guestSlashCommandsChannelId).trim()
+    : '';
+  if (!guestChId || message.channel.id !== guestChId) return;
+  if (!message.channel.isTextBased()) return;
+
+  const guestRoleId = resolveGuestRoleId(message.guild, cfg);
+  if (!guestRoleId) return;
+
+  let member = message.member;
+  if (!member) {
+    try {
+      member = await message.guild.members.fetch(message.author.id);
+    } catch {
+      return;
+    }
+  }
+  if (!member.roles.cache.has(guestRoleId)) return;
+
+  const style = guestRegisterReminderStyle(cfg);
+  const guildName = message.guild.name;
+
+  if (style === 'dm_once') {
+    if (hasReceivedGuestRegisterDm(message.guild.id, message.author.id)) return;
+    const text =
+      `**${guildName}** sunucusunda henüz kayıt olmadın.\n\n` +
+      `Misafir bot komut kanalından **Kayıt Ol** butonuna tıkla veya \`/kaydol\` kullan.`;
+    try {
+      await message.author.send({ content: text.slice(0, 2000) });
+      markReceivedGuestRegisterDm(message.guild.id, message.author.id);
+    } catch {
+      /* DM kapalı veya bot engelli */
+    }
+    return;
+  }
+
+  const cdKey = `${message.guild.id}:${message.author.id}`;
+  const now = Date.now();
+  const prevCd = guestRegisterReminderLast.get(cdKey);
+  if (prevCd && now - prevCd < guestRegisterReminderCooldownMs) return;
+  guestRegisterReminderLast.set(cdKey, now);
+
+  const deleteMin = normalizeGuestReminderDeleteMinutes(cfg.timeouts?.guestRegisterReminderDeleteMinutes);
+  const deleteMs = deleteMin * 60 * 1000;
+  const text = `${message.author}, henüz kayıt olmadın. **Kayıt Ol** butonunu kullan veya \`/kaydol\` yaz.`;
+
+  try {
+    const reply = await message.reply({
+      content: text.slice(0, 2000),
+      allowedMentions: { users: [message.author.id] },
+    });
+    setTimeout(() => {
+      reply.delete().catch(() => {});
+    }, deleteMs);
+  } catch {
+    /* yetki */
+  }
+}
 
 function cooldownKey(message, suffix = '') {
   return `${message.guild.id}:${message.channel.id}:${message.author.id}${suffix}`;
@@ -22,9 +103,11 @@ function substituteResponse(template, message) {
 
 module.exports = async function onMessageCreate(message) {
   if (!message.guild || message.author.bot) return;
-  if (!message.content || typeof message.content !== 'string') return;
 
   const cfg = readGuildConfig(message.guild.id);
+  await maybeGuestSlashRegisterReminder(message, cfg);
+
+  if (!message.content || typeof message.content !== 'string') return;
   const trimmed = message.content.trim();
   if (!trimmed) return;
   const normalizedCmdLike = trimmed.toLowerCase().replace(/\s+/g, '');

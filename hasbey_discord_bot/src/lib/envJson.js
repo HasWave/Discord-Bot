@@ -53,6 +53,8 @@ function applyEnvJsonToProcess(envPath) {
   }
   const pk = pick('DISCORD_PUBLIC_KEY', 'discordPublicKey', 'publicKey');
   if (pk) pairs.push(['DISCORD_PUBLIC_KEY', pk]);
+  const guestDef = pick('DEFAULT_GUEST_ROLE_ID', 'defaultGuestRoleId');
+  if (guestDef && /^\d{10,25}$/.test(guestDef)) pairs.push(['DEFAULT_GUEST_ROLE_ID', guestDef]);
 
   for (const [k, v] of pairs) {
     if (v) process.env[k] = v;
@@ -151,6 +153,7 @@ function getFromEnvJson(root, canonicalUpper) {
     APPLICATION_ID: ['APPLICATION_ID', 'applicationId', 'CLIENT_ID', 'clientId'],
     GUILD_IDS: ['GUILD_IDS', 'guildIds'],
     DISCORD_PUBLIC_KEY: ['DISCORD_PUBLIC_KEY', 'discordPublicKey', 'publicKey'],
+    DEFAULT_GUEST_ROLE_ID: ['DEFAULT_GUEST_ROLE_ID', 'defaultGuestRoleId'],
   };
   const keys = map[canonicalUpper] || [canonicalUpper];
   for (const k of keys) {

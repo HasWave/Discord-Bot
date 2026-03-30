@@ -59,6 +59,8 @@ function defaultFeatures() {
     triggerReplies: true,
     /** Yasaklı kelime filtresi (mesajı sil + uyar) */
     wordFilter: true,
+    /** Misafir bot komut kanalında yazınca “kaydol” hatırlatması (mesaj süresi: timeouts) */
+    guestSlashRegisterReminder: true,
   };
 }
 
@@ -157,20 +159,43 @@ function normalizeWelcomeCard(raw, fallback) {
   };
 }
 
+/** Guild JSON’da guestRoleId yoksa env.json `DEFAULT_GUEST_ROLE_ID` (bot başlarken yüklenir). */
+function guestRoleIdFromEnv() {
+  const v = process.env.DEFAULT_GUEST_ROLE_ID;
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!/^\d{10,25}$/.test(s)) return null;
+  return s;
+}
+
+function applyGuestRoleIdEnvFallback(roles) {
+  const out = { ...roles };
+  const cur = out.guestRoleId;
+  if (cur != null && String(cur).trim() !== '') return out;
+  const fromEnv = guestRoleIdFromEnv();
+  if (fromEnv) out.guestRoleId = fromEnv;
+  return out;
+}
+
 function defaultGuildRecord() {
   return {
     setupComplete: false,
     botOwnerId: null,
     roles: {
-      memberRoleName: 'ᴛᴇꜱ̧ᴋɪʟᴀᴛ',
+      memberRoleName: '🎖️ ᴛᴇꜱ̧ᴋɪʟᴀᴛ',
       memberRoleId: null,
-      guestRoleName: 'ᴍɪꜱᴀꜰɪʀ',
-      guestRoleId: null,
+      /** defaultTemplate misafir rol adı ile aynı olmalı (ID yoksa isimle çözüm için) */
+      guestRoleName: '👤 ᴍɪꜱᴀꜰɪʀ',
+      guestRoleId: guestRoleIdFromEnv(),
     },
     channels: {},
     features: defaultFeatures(),
     customMessages: defaultCustomMessages(),
-    timeouts: { afkMinutes: 30 },
+    timeouts: {
+      afkMinutes: 30,
+      guestRegisterReminderDeleteMinutes: 5,
+      guestRegisterReminderStyle: 'dm_once',
+    },
     createdAt: null,
     updatedAt: null,
   };
@@ -208,12 +233,12 @@ function readGuildConfig(guildId) {
     return {
       ...base,
       ...parsed,
-      roles: {
+      roles: applyGuestRoleIdEnvFallback({
         ...base.roles,
         ...(parsed.roles || {}),
         memberRoleName: parsed.roles?.memberRoleName ?? base.roles.memberRoleName,
         guestRoleName: parsed.roles?.guestRoleName ?? base.roles.guestRoleName,
-      },
+      }),
       channels: mergeChannelsWithOverlay(guildId, { ...base.channels, ...(parsed.channels || {}) }),
       features: { ...base.features, ...(parsed.features || {}) },
       customMessages: {
