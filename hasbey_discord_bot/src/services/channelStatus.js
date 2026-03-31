@@ -11,7 +11,7 @@ function channelRenameKey(guildId, channelId) {
 }
 
 function formatMemberCountDisplay(n) {
-  return `${DISPLAY_PREFIX} : ${n}`.slice(0, 100);
+  return `${DISPLAY_PREFIX}${n}`.slice(0, 100);
 }
 
 function formatLastRegisteredDisplay(rawName) {

@@ -292,7 +292,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
     permissionOverwrites: lockedStatVoiceOverwrites,
   });
   channels.memberCount = await create({
-    name: `「👤」 : ${initialMemberCount}`,
+    name: `「👤」${initialMemberCount}`,
     type: ChannelType.GuildVoice,
     parent: catStatus.id,
     permissionOverwrites: lockedStatVoiceOverwrites,
