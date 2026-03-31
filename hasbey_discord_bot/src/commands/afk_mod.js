@@ -55,8 +55,8 @@ module.exports = {
 
     await interaction.editReply({
       content: on
-        ? '✅ AFK taşıma eklentisi **açıldı** (süre dolunca üyeler AFK ses kanalına taşınır).'
-        : '✅ AFK taşıma eklentisi **kapandı**; bekleyen süre sayaçları bu sunucu için sıfırlandı.',
+        ? '🤖 Afk Taşıma Eklentisi Açıldı.'
+        : '🤖 Afk Taşıma Eklentisi Kapatıldı.',
       flags: EPHEMERAL,
     });
   },
