@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { readGuildConfig } = require('../lib/storage');
-const { isGuildSetup } = require('../lib/guards');
+const { isJoinOnboardingReady } = require('../lib/guards');
 const { resolveGuestRoleId } = require('../lib/resolveRoles');
 const { resolveWelcomeChannelId } = require('../lib/resolveChannels');
 const { recordJoin } = require('../lib/stats');
@@ -21,22 +21,31 @@ module.exports = async function onGuildMemberAdd(member) {
   const cfg = readGuildConfig(member.guild.id);
   queueMemberCountUpdate(member.client, member.guild);
 
+  const onboarding = isJoinOnboardingReady(cfg, member.guild);
   const guestRoleId = resolveGuestRoleId(member.guild, cfg);
-  if (isGuildSetup(cfg) && guestRoleId && !member.user.bot) {
+  if (onboarding && guestRoleId && !member.user.bot) {
     try {
-      await member.roles.add(guestRoleId, 'Yeni üye — Misafir');
-    } catch {
-      /* hiyerarşi / yetki */
+      await member.roles.add(guestRoleId, 'Yeni üye — Misafir (yeniden katılım dahil)');
+    } catch (e) {
+      console.warn(`[guildMemberAdd] misafir rolü verilemedi (üye ${member.user.tag}): ${e.message}`);
     }
   }
 
-  if (!isGuildSetup(cfg)) return;
+  if (!onboarding) return;
   if (cfg.features?.welcomeOnJoin === false) return;
   const welcomeChId = resolveWelcomeChannelId(cfg);
   if (!welcomeChId) return;
 
-  const ch = member.guild.channels.cache.get(welcomeChId);
-  if (!ch?.isTextBased()) return;
+  let ch = member.guild.channels.cache.get(welcomeChId);
+  if (!ch) {
+    ch = await member.guild.channels.fetch(welcomeChId).catch(() => null);
+  }
+  if (!ch?.isTextBased()) {
+    console.warn(
+      `[guildMemberAdd] hoş geldin kanalı bulunamadı veya metin kanalı değil: ${welcomeChId} (${member.guild.name})`
+    );
+    return;
+  }
 
   const lines = cfg.customMessages?.welcomeLines;
   const defaultDesc =

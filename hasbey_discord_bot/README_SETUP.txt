@@ -46,3 +46,9 @@ Yapılandırma → bot_guest_role_id / bot_member_role_id:
   misafiri kaldırır. Misafir rol ID’si, Discord’da “Sunucu durumu” kategorisi ve
   misafir bot komut kanalı izinlerinde kullandığınız rol ile aynı olmalı.
   Büyük harf (BOT_GUEST_ROLE_ID vb.) veya yazım varyantları options/env ile de okunur.
+
+• bot_owner_user_id (Discord kullanıcı snowflake ID’si):
+  options.json / env ile verilirse data/guilds dosyasında setupComplete açılır; yalnızca
+  HA’dan kanal/rol gelip Discord’da /start yapılmamışsa üyelik akışı (misafir + Kayıt Ol)
+  yine çalışır. Yeniden katılan üyeler için de bot rolünün misafir rolünden üstte
+  olması ve misafir bot komut kanalına “Mesaj Gönder” yetkisi gerekir.

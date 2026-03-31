@@ -2,6 +2,7 @@
  * Home Assistant Supervisor: /data/options.json (+ isteğe bağlı env) → data/guilds/<guild_id>.json birleştirme.
  * Yalnızca HA eklenti paketinde kullanılır; ana HasBEY bot deposunda yoktur.
  *
+ * Bot sahibi (optional): `bot_owner_user_id` → `setupComplete` + karşılama/misafir akışı için `isGuildSetup`.
  * Misafir / kayıtlı rol: `bot_guest_role_id`, `bot_member_role_id` (config.yaml).
  * Büyük harf veya yazım varyantları (ör. BOT_GUEST_ROLE_ID, BOT_GUEST_ROL_ID) da okunur.
  */
@@ -102,6 +103,12 @@ function applyHomeAssistantOptionsMerge() {
     return;
   }
 
+  const ownerUserId = pickSnowflakeFromOptAndEnv(
+    opt,
+    ['bot_owner_user_id', 'BOT_OWNER_USER_ID', 'owner_user_id'],
+    ['BOT_OWNER_USER_ID', 'OWNER_USER_ID', 'bot_owner_user_id']
+  );
+
   const cfg = readGuildConfig(guildId);
   const channels = { ...cfg.channels };
   const roles = { ...cfg.roles };
@@ -132,14 +139,26 @@ function applyHomeAssistantOptionsMerge() {
     }
   }
 
+  let nextCfg = { ...cfg, channels, roles };
+  if (ownerUserId) {
+    if (nextCfg.botOwnerId !== ownerUserId) {
+      nextCfg.botOwnerId = ownerUserId;
+      changed = true;
+    }
+    if (!nextCfg.setupComplete) {
+      nextCfg.setupComplete = true;
+      changed = true;
+    }
+  }
+
   if (!changed) {
     return;
   }
 
-  writeGuildConfig(guildId, { ...cfg, channels, roles });
+  writeGuildConfig(guildId, nextCfg);
   console.log(
     chalk.cyan(
-      `[HA Supervisor] Eklenti yapılandırması → data/guilds/${guildId}.json birleştirildi (kanal/rol ID).`
+      `[HA Supervisor] Eklenti yapılandırması → data/guilds/${guildId}.json birleştirildi (kanal/rol ID${ownerUserId ? ' + sahip kullanıcı' : ''}).`
     )
   );
 }

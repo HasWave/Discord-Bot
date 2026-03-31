@@ -31,6 +31,7 @@ options:
   bot_player_category_id: ''
   bot_member_role_id: ''
   bot_guest_role_id: ''
+  bot_owner_user_id: ''
 schema:
   discord_token: password
   client_id: str?
@@ -49,3 +50,4 @@ schema:
   bot_player_category_id: str?
   bot_member_role_id: str?
   bot_guest_role_id: str?
+  bot_owner_user_id: str?

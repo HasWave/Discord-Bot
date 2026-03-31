@@ -115,6 +115,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
     roles.destek.id,
     roles.etkinlik.id,
   ];
+  const staffWriteRoleIdSet = new Set(staffWriteRoleIds);
 
   /** Kanalları görmesi gereken personel / özel roller (üyelik dışı). */
   const staffChannelViewIds = [
@@ -135,6 +136,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
     id,
     allow: [PermissionFlagsBits.ViewChannel],
   }));
+  const staffReadonlyViewRoleIds = staffChannelViewIds.filter((id) => !staffWriteRoleIdSet.has(id));
 
   /**
    * Üye alanları: @everyone ve misafir görünmez; kayıtlı üye + personel görür.
@@ -178,6 +180,11 @@ async function installDefaultTemplate(guild, botOwnerId) {
         PermissionFlagsBits.AddReactions,
       ],
     })),
+    ...staffReadonlyViewRoleIds.map((id) => ({
+      id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: readonlyTextDenies,
+    })),
   ];
 
   const notifyReadonlyOverwrites = [
@@ -208,6 +215,11 @@ async function installDefaultTemplate(guild, botOwnerId) {
         PermissionFlagsBits.AttachFiles,
         PermissionFlagsBits.AddReactions,
       ],
+    })),
+    ...staffReadonlyViewRoleIds.map((id) => ({
+      id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: readonlyTextDenies,
     })),
   ];
   if (meId) {

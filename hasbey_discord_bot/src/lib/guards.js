@@ -1,7 +1,19 @@
 const { PermissionFlagsBits, ChannelType } = require('discord.js');
+const { resolveGuestRoleId } = require('./resolveRoles');
+const { resolveWelcomeChannelId } = require('./resolveChannels');
 
 function isGuildSetup(cfg) {
   return Boolean(cfg?.setupComplete && cfg?.botOwnerId);
+}
+
+/**
+ * Üye girişinde misafir + hoş geldin: tam `/start` veya (Supervisor) karşılama kanalı + misafir rolü tanımlıysa.
+ */
+function isJoinOnboardingReady(cfg, guild) {
+  if (isGuildSetup(cfg)) return true;
+  const welcomeCh = resolveWelcomeChannelId(cfg);
+  const guestRole = resolveGuestRoleId(guild, cfg);
+  return Boolean(welcomeCh && guestRole);
 }
 
 function canOperateServer(member, cfg) {
@@ -62,4 +74,4 @@ function isGuildBareForKur(guild) {
   return true;
 }
 
-module.exports = { isGuildSetup, canOperateServer, isGuildBareForKur };
+module.exports = { isGuildSetup, isJoinOnboardingReady, canOperateServer, isGuildBareForKur };
