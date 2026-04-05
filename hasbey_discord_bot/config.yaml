@@ -1,5 +1,5 @@
 name: HasBEY Discord Bot
-version: '2.0.2'
+version: '2.0.3'
 slug: hasbey_discord_bot
 description: >-
   Raspberry Pi Supervisor. Zorunlu: discord_token, guild_id.
@@ -9,7 +9,6 @@ description: >-
 arch:
   - aarch64
   - amd64
-  - armv7
 init: false
 startup: application
 boot: auto

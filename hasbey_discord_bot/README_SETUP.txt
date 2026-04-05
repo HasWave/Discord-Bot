@@ -1,6 +1,7 @@
 HasBEY Discord Bot — Home Assistant Supervisor (kök bot ile aynı kod)
 
-Derleme: build.yaml her mimaride resmi Node 20 (bookworm-slim) kullanır; Alpine/yanlış
+Mimari: aarch64 + amd64 (Supervisor armv7/armhf/i386 artık “deprecated” uyarısı verir; HA 64-bit Pi önerir).
+Derleme: build.yaml resmi Node 20 (bookworm-slim); Alpine/yanlış
 BUILD_FROM yüzünden oluşan “unknown error” engellenir. @napi-rs/canvas için Dockerfile’da
 python3/make/g++ vardır.
 

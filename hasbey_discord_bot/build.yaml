@@ -2,4 +2,3 @@
 build_from:
   aarch64: docker.io/library/node:20-bookworm-slim
   amd64: docker.io/library/node:20-bookworm-slim
-  armv7: docker.io/library/node:20-bookworm-slim

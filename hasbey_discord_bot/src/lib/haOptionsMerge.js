@@ -29,23 +29,7 @@ const HA_CHANNEL_OPTIONS = [
   ['bot_announcement_channel_id', 'announcementChannelId'],
 ];
 
-/** Şablon rolleri (misafir/teşkilat HA_ROLE_BINDINGS ile; burada staff şablonu) */
-const HA_SIMPLE_ROLE_OPTIONS = [
-  ['bot_owner_role_id', 'ownerRoleId'],
-  ['bot_admin_role_id', 'adminRoleId'],
-  ['bot_mod_role_id', 'modRoleId'],
-  ['bot_trial_mod_role_id', 'trialModRoleId'],
-  ['bot_kick_mod_role_id', 'kickModRoleId'],
-  ['bot_support_role_id', 'supportRoleId'],
-  ['bot_event_role_id', 'eventRoleId'],
-  ['bot_streamer_role_id', 'streamerRoleId'],
-  ['bot_developer_role_id', 'developerRoleId'],
-  ['bot_vip_role_id', 'vipRoleId'],
-  ['bot_tag_role_id', 'botTagRoleId'],
-  ['bot_female_role_id', 'femaleRoleId'],
-  ['bot_drama_queen_role_id', 'dramaQueenRoleId'],
-];
-
+/** Yalnızca misafir + kayıt (teşkilat) rolü — diğer şablon rolleri /start veya guild JSON’da kalır */
 const HA_ROLE_BINDINGS = [
   {
     cfgKey: 'guestRoleId',
@@ -175,16 +159,6 @@ function applyHomeAssistantOptionsMerge() {
     if (!v) {
       continue;
     }
-    if (roles[cfgKey] !== v) {
-      roles[cfgKey] = v;
-      changed = true;
-    }
-  }
-
-  for (const [optKey, cfgKey] of HA_SIMPLE_ROLE_OPTIONS) {
-    if (!(optKey in opt)) continue;
-    const v = String(opt[optKey] ?? '').trim();
-    if (!v || !isSnowflake(v)) continue;
     if (roles[cfgKey] !== v) {
       roles[cfgKey] = v;
       changed = true;
