@@ -6,8 +6,6 @@ module.exports = {
   ROOT,
   dataDir: path.join(ROOT, 'data'),
   guildFile: (guildId) => path.join(ROOT, 'data', 'guilds', `${guildId}.json`),
-  /** İsteğe bağlı: kanal ID map’i { "sunucuSnowflake": { "slashCommandsChannelId": "..." } } */
-  channelIdsJsonPath: path.join(ROOT, 'data', 'channel-ids.json'),
   statsFile: (guildId) => path.join(ROOT, 'data', 'stats', `${guildId}.json`),
   backupDir: (guildId) => path.join(ROOT, 'data', 'backups', guildId),
   /** Başka sunucudan kopyalanan `sunucu-yedek.json` — `/kur` ikinci aranan yol */

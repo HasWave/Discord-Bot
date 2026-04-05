@@ -1,46 +1,17 @@
 const fs = require('fs');
 const path = require('path');
-const { dataDir, guildFile, backupDir, channelIdsJsonPath, backupImportTemplatePath } = require('./paths');
+const { dataDir, guildFile, backupDir, backupImportTemplatePath } = require('./paths');
 const { readGuildOverlayFromMainConfig } = require('./mainConfig');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-function readChannelIdsOverlay(guildId) {
-  if (!fs.existsSync(channelIdsJsonPath)) return {};
-  try {
-    const all = JSON.parse(fs.readFileSync(channelIdsJsonPath, 'utf8'));
-    const slice = all[String(guildId)];
-    return slice && typeof slice === 'object' && !Array.isArray(slice) ? { ...slice } : {};
-  } catch {
-    return {};
-  }
-}
-
+/** `data/guilds` kanalları + kök `config.json` (Kanal Ayarları) üzerine yazar. */
 function mergeChannelsWithOverlay(guildId, channelsObj) {
-  const ov = readChannelIdsOverlay(guildId);
   const base = channelsObj && typeof channelsObj === 'object' ? { ...channelsObj } : {};
   const fromMainConfig = readGuildOverlayFromMainConfig(path.join(__dirname, '..', '..'), guildId);
-  return { ...base, ...ov, ...(fromMainConfig.channels || {}) };
-}
-
-function syncChannelIdsJsonFile(guildId, channels) {
-  let all = {};
-  if (fs.existsSync(channelIdsJsonPath)) {
-    try {
-      all = JSON.parse(fs.readFileSync(channelIdsJsonPath, 'utf8'));
-      if (!all || typeof all !== 'object' || Array.isArray(all)) all = {};
-    } catch {
-      all = {};
-    }
-  }
-  const ch = channels && typeof channels === 'object' && !Array.isArray(channels) ? { ...channels } : {};
-  const id = String(guildId);
-  if (Object.keys(ch).length === 0) delete all[id];
-  else all[id] = ch;
-  ensureDir(path.dirname(channelIdsJsonPath));
-  fs.writeFileSync(channelIdsJsonPath, JSON.stringify(all, null, 2), 'utf8');
+  return { ...base, ...(fromMainConfig.channels || {}) };
 }
 
 function defaultFeatures() {
@@ -282,7 +253,6 @@ function writeGuildConfig(guildId, cfg) {
     updatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(guildFile(guildId), JSON.stringify(next, null, 2), 'utf8');
-  syncChannelIdsJsonFile(guildId, next.channels || {});
 }
 
 function writeBackup(guildId, name, payload) {
