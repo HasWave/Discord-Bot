@@ -1,11 +1,11 @@
 name: HasBEY Discord Bot
-version: '2.0.0'
+version: '2.0.2'
 slug: hasbey_discord_bot
 description: >-
-  Kök HasBEY botunun Raspberry Pi Supervisor sürümü. Zorunlu: discord_token, guild_id.
-  Kanal/rol alanlarını doldurduğunuzda her başlangıçta data/guilds/<guild_id>.json güncellenir.
-  Boş bırakılan alanlar mevcut JSON değerini silmez. İsteğe bağlı: client_id (slash deploy),
-  bot_owner_user_id (setupComplete). Kurallar/Duyuru kanalı: bot_rules_channel_id, bot_announcement_channel_id.
+  Raspberry Pi Supervisor. Zorunlu: discord_token, guild_id.
+  Rol alanları: yalnızca misafir (bot_guest_role_id) ve kayıt sonrası teşkilat rolü (bot_member_role_id).
+  Diğer şablon rolleri sunucuda /start veya data/guilds/<id>.json ile gelir; panelde sorulmaz.
+  Kanal ID’leri isteğe bağlı; boş bırakılanlar JSON’daki değeri korur.
 arch:
   - aarch64
   - amd64
@@ -38,19 +38,6 @@ options:
   bot_announcement_channel_id: ''
   bot_guest_role_id: ''
   bot_member_role_id: ''
-  bot_owner_role_id: ''
-  bot_admin_role_id: ''
-  bot_mod_role_id: ''
-  bot_trial_mod_role_id: ''
-  bot_kick_mod_role_id: ''
-  bot_support_role_id: ''
-  bot_event_role_id: ''
-  bot_streamer_role_id: ''
-  bot_developer_role_id: ''
-  bot_vip_role_id: ''
-  bot_tag_role_id: ''
-  bot_female_role_id: ''
-  bot_drama_queen_role_id: ''
 schema:
   discord_token: password
   client_id: str?
@@ -72,16 +59,3 @@ schema:
   bot_announcement_channel_id: str?
   bot_guest_role_id: str?
   bot_member_role_id: str?
-  bot_owner_role_id: str?
-  bot_admin_role_id: str?
-  bot_mod_role_id: str?
-  bot_trial_mod_role_id: str?
-  bot_kick_mod_role_id: str?
-  bot_support_role_id: str?
-  bot_event_role_id: str?
-  bot_streamer_role_id: str?
-  bot_developer_role_id: str?
-  bot_vip_role_id: str?
-  bot_tag_role_id: str?
-  bot_female_role_id: str?
-  bot_drama_queen_role_id: str?

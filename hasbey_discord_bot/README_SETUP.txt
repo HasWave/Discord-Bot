@@ -1,5 +1,9 @@
 HasBEY Discord Bot — Home Assistant Supervisor (kök bot ile aynı kod)
 
+Derleme: build.yaml her mimaride resmi Node 20 (bookworm-slim) kullanır; Alpine/yanlış
+BUILD_FROM yüzünden oluşan “unknown error” engellenir. @napi-rs/canvas için Dockerfile’da
+python3/make/g++ vardır.
+
 ──────────────────────────────────────────────────────────────────
 Yapılandırma alanları (hepsi isteğe bağlı doldurulabilir, boş = JSON’da eski değer kalır)
 ──────────────────────────────────────────────────────────────────
@@ -28,13 +32,10 @@ Kanal ID (metin/ses/kategori):
   bot_rules_channel_id           — Kurallar
   bot_announcement_channel_id    — Duyurular
 
-Rol ID:
-  bot_guest_role_id, bot_member_role_id
-  bot_owner_role_id, bot_admin_role_id, bot_mod_role_id
-  bot_trial_mod_role_id, bot_kick_mod_role_id
-  bot_support_role_id, bot_event_role_id, bot_streamer_role_id
-  bot_developer_role_id, bot_vip_role_id, bot_tag_role_id
-  bot_female_role_id, bot_drama_queen_role_id
+Rol ID (panelde yalnız bunlar):
+  bot_guest_role_id   — Misafir rolü
+  bot_member_role_id  — Kayıt olunca verilecek (teşkilat) rolü
+  Diğer şablon rolleri: /start veya guild JSON’da; Supervisor formunda yok.
 
 Her başlangıç: /data/options.json → data/guilds/<guild_id>.json birleştirilir.
 
