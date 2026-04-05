@@ -1,6 +1,9 @@
 # Yerel gizliler — asla commit etme
 hasbey_discord_bot/config.json
 
+# git filter-branch artığı
+.git-rewrite/
+
 # Bağımlılıklar / çalışma
 hasbey_discord_bot/node_modules/
 **/node_modules/
