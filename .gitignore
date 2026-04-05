@@ -1,0 +1,9 @@
+# Yerel gizliler — asla commit etme
+hasbey_discord_bot/config.json
+
+# Bağımlılıklar / çalışma
+hasbey_discord_bot/node_modules/
+**/node_modules/
+.env
+.env.*
+*.log
