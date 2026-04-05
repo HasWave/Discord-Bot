@@ -1,7 +1,11 @@
 name: HasBEY Discord Bot
-version: '1.0.1'
+version: '1.0.2'
 slug: hasbey_discord_bot
-description: HasBEY Discord botu — Home Assistant Supervisor (token + isteğe bağlı kanal/rol ID).
+description: >-
+  Önerilen akış: Bilgisayarda botta /start ile kurun; oluşan data/guilds/<sunucu_id>.json
+  dosyasını hostta /share/hasbey_discord_bot_data/guilds/ altına aynı adla koyun.
+  Yapılandırmada Discord token + Sunucu ID (guild_id) yeterli. Kanal/rol alanları isteğe bağlı
+  (dosyada yoksa veya HA’dan tamamlamak isterseniz doldurun).
 arch:
   - aarch64
   - amd64
@@ -35,7 +39,7 @@ options:
 schema:
   discord_token: password
   client_id: str?
-  guild_id: str?
+  guild_id: str
   bot_slash_commands_channel_id: str?
   bot_guest_slash_channel_id: str?
   bot_last_registered_display_channel_id: str?

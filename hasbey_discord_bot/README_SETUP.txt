@@ -40,10 +40,19 @@ Derleme hatasında: Supervisor günlükleri (ha supervisor logs).
   build_from alaninda kisa "node:22-alpine" KULLANMA — Supervisor reddeder;
   "docker.io/library/node:22-alpine" tam yol kullanilir (npm icin gerekli).
 
-Yapılandırma (config.yaml / eklenti paneli) → guild_id zorunlu; şunları da doldurun:
-  bot_guest_slash_channel_id (misafir 「🤖」bot komut kanalı),
-  bot_guest_role_id, isteğe bot_member_role_id, bot_owner_user_id (hoş geldin için).
-  Bot her başlangıçta /data/options.json → data/guilds/<guild_id>.json birleştirir.
+Yapılandırma (config.yaml / eklenti paneli)
+
+  • Önerilen (PC’de zaten /start yapıldıysa):
+    discord_token + guild_id (Sunucu ID) yeterli.
+    Oluşan dosyayı hostta şuraya koyun:
+      /share/hasbey_discord_bot_data/guilds/<AYNI_SUNUCU_ID>.json
+    Diğer kanal/rol alanlarını boş bırakabilirsiniz; bot mevcut JSON’u olduğu gibi kullanır.
+
+  • HA’dan sıfır kurmak veya ID’leri panelden yazmak isterseniz:
+    bot_guest_slash_channel_id, bot_guest_role_id, isteğe bot_member_role_id,
+    bot_owner_user_id vb. doldurun.
+    Bot her başlangıçta yalnızca DOLU ve geçerli snowflake alanları
+    /data/options.json → data/guilds/<guild_id>.json ile birleştirir; boş alanlar dosyayı silmez.
 
 Yapılandırma → bot_guest_role_id / bot_member_role_id:
   Bu değerler kayda yazılır. Bot yeni üyeye

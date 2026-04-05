@@ -1,7 +1,7 @@
 /**
  * Home Assistant Supervisor: /data/options.json (+ env) → data/guilds/<guild_id>.json birleştirme.
- * Docker’da config.json olmadan eklenti ekranından kanal/rol ID verildiğinde misafir akışı çalışsın diye
- * bot başlarken (index.js) çağrılır.
+ * PC’de /start ile dolu guild JSON paylaşıma kopyalandıysa: yalnızca token + guild_id yeterli;
+ * kanal/rol alanları boşsa birleştirme dosyayı değiştirmez (mevcut JSON kullanılır).
  *
  * Bot sahibi (isteğe bağlı): `bot_owner_user_id` → `setupComplete` + hoş geldin akışı.
  */
@@ -148,6 +148,13 @@ function applyHomeAssistantOptionsMerge() {
   }
 
   if (!changed) {
+    if (cfg.setupComplete) {
+      console.log(
+        chalk.dim(
+          `[HA Supervisor] data/guilds/${guildId}.json — eklenti alanları dosyayı değiştirmedi; PC’den kopyalanan kurulum olduğu gibi kullanılıyor.`
+        )
+      );
+    }
     return;
   }
 
