@@ -10,25 +10,29 @@ if [ -r /data/options.json ]; then
       } catch (e) {}
     "
   )"
-  export CLIENT_ID="$(
-    node -e "
-      const fs = require('fs');
-      try {
-        const o = JSON.parse(fs.readFileSync('/data/options.json', 'utf8'));
-        process.stdout.write(String(o.client_id || ''));
-      } catch (e) {}
-    "
-  )"
   export GUILD_ID="$(
     node -e "
       const fs = require('fs');
+      function parseGuildId(v) {
+        const s = String(v || '').trim();
+        if (/^\\d{10,25}\$/.test(s)) return s;
+        const a = s.match(/guilds\\/(\\d{10,25})(?:\\.json)?/i);
+        if (a) return a[1];
+        const b = s.match(/(\\d{10,25})\\.json\\b/i);
+        if (b) return b[1];
+        const c = s.match(/discord\\.com\\/channels\\/(\\d{10,25})\\//i);
+        return c ? c[1] : '';
+      }
       try {
         const o = JSON.parse(fs.readFileSync('/data/options.json', 'utf8'));
-        process.stdout.write(String(o.guild_id || ''));
+        process.stdout.write(parseGuildId(o.guild_id));
       } catch (e) {}
     "
   )"
 fi
+
+export HASBEY_MENU_READY_LAYOUT=1
+export BOT_LOG_STACK=1
 
 if [ -d /share ] && [ -w /share ]; then
   DATA_LINK=/share/hasbey_discord_bot_data

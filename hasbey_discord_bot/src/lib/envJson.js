@@ -15,16 +15,26 @@ function ensureObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
 }
 
-/** Bot / deploy / menü girişi — sadece merkezi config.json kullanılır */
+/** Bot / deploy / menü — config.json; Supervisor run.sh / ortam değişkeni doluysa config.json bunları EZMEZ */
 function loadProjectEnv(root) {
   const cfgEnv = readBotEnvFromMainConfig(root);
-  if (cfgEnv.DISCORD_TOKEN) process.env.DISCORD_TOKEN = cfgEnv.DISCORD_TOKEN;
-  if (cfgEnv.GUILD_ID) process.env.GUILD_ID = cfgEnv.GUILD_ID;
-  if (cfgEnv.CLIENT_ID) {
+  const tokenEnv = String(process.env.DISCORD_TOKEN ?? '').trim();
+  if (!tokenEnv && cfgEnv.DISCORD_TOKEN) {
+    process.env.DISCORD_TOKEN = cfgEnv.DISCORD_TOKEN;
+  }
+  const guildEnv = String(process.env.GUILD_ID ?? '').trim();
+  if (!guildEnv && cfgEnv.GUILD_ID) {
+    process.env.GUILD_ID = cfgEnv.GUILD_ID;
+  }
+  const clientEnv = String(process.env.CLIENT_ID ?? process.env.APPLICATION_ID ?? '').trim();
+  if (!clientEnv && cfgEnv.CLIENT_ID) {
     process.env.CLIENT_ID = cfgEnv.CLIENT_ID;
     process.env.APPLICATION_ID = cfgEnv.CLIENT_ID;
   }
-  if (cfgEnv.DISCORD_PUBLIC_KEY) process.env.DISCORD_PUBLIC_KEY = cfgEnv.DISCORD_PUBLIC_KEY;
+  const pkEnv = String(process.env.DISCORD_PUBLIC_KEY ?? '').trim();
+  if (!pkEnv && cfgEnv.DISCORD_PUBLIC_KEY) {
+    process.env.DISCORD_PUBLIC_KEY = cfgEnv.DISCORD_PUBLIC_KEY;
+  }
 
   const cfg = readMainConfig(root);
   const roles = ensureObject(cfg['Rol Ayarları']);

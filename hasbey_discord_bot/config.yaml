@@ -1,11 +1,11 @@
 name: HasBEY Discord Bot
-version: '1.0.2'
+version: '1.2.0'
 slug: hasbey_discord_bot
 description: >-
-  Önerilen akış: Bilgisayarda botta /start ile kurun; oluşan data/guilds/<sunucu_id>.json
-  dosyasını hostta /share/hasbey_discord_bot_data/guilds/ altına aynı adla koyun.
-  Yapılandırmada Discord token + Sunucu ID (guild_id) yeterli. Kanal/rol alanları isteğe bağlı
-  (dosyada yoksa veya HA’dan tamamlamak isterseniz doldurun).
+  Raspberry Pi / Home Assistant Supervisor. Yapılandır: (1) discord_token = Bot token.
+  (2) guild_id = sunucu ID (yalnız rakamlar veya .../guilds/ID.json içeren adres).
+  Sunucu ayarı: File Editor ile /share/hasbey_discord_bot_data/guilds/<SUNUCU_ID>.json
+  (PC’deki data/guilds/<id>.json içeriği). Token alanına URL yazmayın.
 arch:
   - aarch64
   - amd64
@@ -19,39 +19,7 @@ map:
   - share:rw
 options:
   discord_token: ''
-  client_id: ''
   guild_id: ''
-  bot_slash_commands_channel_id: ''
-  bot_guest_slash_channel_id: ''
-  bot_last_registered_display_channel_id: ''
-  bot_member_count_channel_id: ''
-  bot_lobby_voice_channel_id: ''
-  bot_temp_category_id: ''
-  bot_ara_command_channel_id: ''
-  bot_ara_notify_channel_id: ''
-  bot_stream_announce_channel_id: ''
-  bot_afk_voice_channel_id: ''
-  bot_registration_log_channel_id: ''
-  bot_player_category_id: ''
-  bot_member_role_id: ''
-  bot_guest_role_id: ''
-  bot_owner_user_id: ''
 schema:
   discord_token: password
-  client_id: str?
   guild_id: str
-  bot_slash_commands_channel_id: str?
-  bot_guest_slash_channel_id: str?
-  bot_last_registered_display_channel_id: str?
-  bot_member_count_channel_id: str?
-  bot_lobby_voice_channel_id: str?
-  bot_temp_category_id: str?
-  bot_ara_command_channel_id: str?
-  bot_ara_notify_channel_id: str?
-  bot_stream_announce_channel_id: str?
-  bot_afk_voice_channel_id: str?
-  bot_registration_log_channel_id: str?
-  bot_player_category_id: str?
-  bot_member_role_id: str?
-  bot_guest_role_id: str?
-  bot_owner_user_id: str?

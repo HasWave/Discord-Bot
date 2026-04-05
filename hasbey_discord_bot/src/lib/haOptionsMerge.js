@@ -54,6 +54,20 @@ function isSnowflake(s) {
   return /^\d{10,25}$/.test(String(s).trim());
 }
 
+/** HA paneline yanlışlıkla yapıştırılan GitHub / dosya yolu içinden sunucu ID çıkarır */
+function parseGuildIdFromInput(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  if (isSnowflake(s)) return s;
+  const mPath = s.match(/guilds\/(\d{10,25})(?:\.json)?/i);
+  if (mPath) return mPath[1];
+  const mJson = s.match(/(\d{10,25})\.json\b/i);
+  if (mJson) return mJson[1];
+  const mCh = s.match(/discord\.com\/channels\/(\d{10,25})\//i);
+  if (mCh) return mCh[1];
+  return '';
+}
+
 function pickSnowflakeFromOptAndEnv(opt, optionKeys, envKeys) {
   if (opt && typeof opt === 'object') {
     for (const k of optionKeys) {
@@ -72,7 +86,20 @@ function pickSnowflakeFromOptAndEnv(opt, optionKeys, envKeys) {
 }
 
 function resolveGuildIdFromHa(opt) {
-  return pickSnowflakeFromOptAndEnv(opt, ['guild_id', 'GUILD_ID'], ['GUILD_ID', 'guild_id']);
+  if (opt && typeof opt === 'object') {
+    for (const k of ['guild_id', 'GUILD_ID']) {
+      if (!(k in opt)) continue;
+      const parsed = parseGuildIdFromInput(opt[k]);
+      if (parsed) return parsed;
+    }
+  }
+  for (const k of ['GUILD_ID', 'guild_id']) {
+    const raw = process.env[k];
+    if (raw == null) continue;
+    const parsed = parseGuildIdFromInput(raw);
+    if (parsed) return parsed;
+  }
+  return '';
 }
 
 function applyHomeAssistantOptionsMerge() {
@@ -93,7 +120,7 @@ function applyHomeAssistantOptionsMerge() {
   if (!guildId) {
     console.warn(
       chalk.yellow(
-        '[HA Supervisor] options.json okundu; geçerli Sunucu ID (guild_id / GUILD_ID) yok — eklenti veya run.sh ile ayarlayın.'
+        '[HA Supervisor] geçerli Sunucu ID yok. guild_id alanına yalnızca rakamları yazın (örn. 1487134527951339621) veya .../guilds/1487....json içeren bir adres yapıştırın; GitHub URL’si artık otomatik çözülür.'
       )
     );
     return;
@@ -148,13 +175,6 @@ function applyHomeAssistantOptionsMerge() {
   }
 
   if (!changed) {
-    if (cfg.setupComplete) {
-      console.log(
-        chalk.dim(
-          `[HA Supervisor] data/guilds/${guildId}.json — eklenti alanları dosyayı değiştirmedi; PC’den kopyalanan kurulum olduğu gibi kullanılıyor.`
-        )
-      );
-    }
     return;
   }
 

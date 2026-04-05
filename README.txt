@@ -1,11 +1,8 @@
-HasBEY Discord Bot — Home Assistant Supervisor eklentisi (HACS değil)
+HasBEY Discord Bot — Home Assistant Supervisor deposu
 
-Bu depo Home Assistant OS "Eklenti mağazası → Depo ekle" ile eklenir.
+1. repository.json → "url" kendi GitHub repo adresiniz.
+2. Supervisor → Depo ekle → HasBEY Discord Bot → Kur.
+3. Yapılandır: discord_token + guild_id → Kaydet → Başlat.
+4. guilds/<sunucu_id>.json → /share/hasbey_discord_bot_data/guilds/ (File Editor).
 
-Kurulum:
-1. repository.json içindeki "url" değerini bu GitHub repo adresinle güncelle.
-2. Supervisor → Depo ekle → bu repo URL'si.
-3. HasBEY Discord Bot → Yapılandır (token) → Başlat.
-4. Slash: geliştirme makinesinde ana botta npm run deploy-commands.
-
-Veri: /share/hasbey_discord_bot_data
+Detay: hasbey_discord_bot/README_SETUP.txt

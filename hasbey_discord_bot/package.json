@@ -1,11 +1,10 @@
 {
   "name": "hasbey",
   "version": "1.0.0",
-  "description": "HasBEY Discord Botu",
+  "description": "HasBEY Discord Bot — Supervisor (GitHub)",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "menu": "node menu.js",
     "deploy-commands": "node src/deploy-commands.js"
   },
   "author": "HasBEY",

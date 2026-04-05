@@ -344,7 +344,7 @@ client.once(Events.ClientReady, (c) => {
       );
       await new Promise((r) => setTimeout(r, 400));
     }
-  })();
+  })().catch((e) => logError('ClientReady/misafirSenkron', e));
 
   setInterval(() => {
     for (const g of c.guilds.cache.values()) {
@@ -355,15 +355,15 @@ client.once(Events.ClientReady, (c) => {
 });
 
 client.on(Events.GuildMemberAdd, (member) => {
-  require('./events/guildMemberAdd')(member);
+  void require('./events/guildMemberAdd')(member).catch((e) => logError('guildMemberAdd', e));
 });
 
 client.on(Events.GuildMemberRemove, (member) => {
-  require('./events/guildMemberRemove')(member);
+  void require('./events/guildMemberRemove')(member).catch((e) => logError('guildMemberRemove', e));
 });
 
 client.on(Events.VoiceStateUpdate, (oldS, newS) => {
-  require('./events/voiceStateUpdate')(oldS, newS, client);
+  void require('./events/voiceStateUpdate')(oldS, newS, client).catch((e) => logError('voiceStateUpdate', e));
 });
 
 if (enablePresenceIntent) {
@@ -376,7 +376,9 @@ client.on(Events.MessageCreate, (m) => {
   require('./events/messageCreate')(m).catch(() => {});
 });
 
-client.on(Events.InteractionCreate, (i) => handleInteraction(i, commands));
+client.on(Events.InteractionCreate, (i) => {
+  void handleInteraction(i, commands).catch((e) => logError('InteractionCreate', e));
+});
 
 client.on(Events.Warn, (m) => console.warn(chalk.yellow(m)));
 client.on(Events.Error, (e) => {

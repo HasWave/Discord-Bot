@@ -3,5 +3,6 @@ node_modules
 .env
 env.json
 data
+config.json
 *.bat
 **/.DS_Store
