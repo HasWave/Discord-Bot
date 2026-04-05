@@ -2,6 +2,12 @@ const path = require('path');
 const { ROOT } = require('./lib/paths');
 const { loadProjectEnv } = require('./lib/envJson');
 loadProjectEnv(ROOT);
+const { applyHomeAssistantOptionsMerge } = require('./lib/haOptionsMerge');
+try {
+  applyHomeAssistantOptionsMerge();
+} catch (e) {
+  console.warn('[HA Supervisor] options birleştirme:', e?.message || e);
+}
 const fs = require('fs');
 const { Client, Collection, Events, GatewayIntentBits, ActivityType } = require('discord.js');
 const chalk = require('chalk');

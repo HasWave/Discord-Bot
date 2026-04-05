@@ -40,8 +40,13 @@ Derleme hatasında: Supervisor günlükleri (ha supervisor logs).
   build_from alaninda kisa "node:22-alpine" KULLANMA — Supervisor reddeder;
   "docker.io/library/node:22-alpine" tam yol kullanilir (npm icin gerekli).
 
+Yapılandırma (config.yaml / eklenti paneli) → guild_id zorunlu; şunları da doldurun:
+  bot_guest_slash_channel_id (misafir 「🤖」bot komut kanalı),
+  bot_guest_role_id, isteğe bot_member_role_id, bot_owner_user_id (hoş geldin için).
+  Bot her başlangıçta /data/options.json → data/guilds/<guild_id>.json birleştirir.
+
 Yapılandırma → bot_guest_role_id / bot_member_role_id:
-  Eklenti açılışta bunları data/guilds/<guild_id>.json içine yazar. Bot yeni üyeye
+  Bu değerler kayda yazılır. Bot yeni üyeye
   misafir rolünü (guestRoleId), /kaydol ile kayıtlı rolü (memberRoleId) verir ve
   misafiri kaldırır. Misafir rol ID’si, Discord’da “Sunucu durumu” kategorisi ve
   misafir bot komut kanalı izinlerinde kullandığınız rol ile aynı olmalı.

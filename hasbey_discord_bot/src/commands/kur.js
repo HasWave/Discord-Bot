@@ -10,6 +10,7 @@ const { isGuildSetup, canOperateServer } = require('../lib/guards');
 const { ensureBotData } = require('../services/tempVoice');
 const { restoreGuildFromBackup, mergeConfigAfterRestore } = require('../services/restoreFromBackup');
 const { deleteAllChannelsAndRoles, installDefaultTemplate } = require('../services/defaultTemplate');
+const { runPostKurGuestRoleAndWelcome } = require('../services/postKurMemberSync');
 const { EPHEMERAL } = require('../lib/discordFlags');
 
 async function grantPostSetupRoles(guild, cfg, actorUserId) {
@@ -118,6 +119,11 @@ module.exports.runKur = async (interaction) => {
       const next = mergeConfigAfterRestore(cfg, gid, payload, roleMap, channelMap);
       writeGuildConfig(gid, next);
       await grantPostSetupRoles(interaction.guild, next, interaction.user.id);
+      try {
+        await runPostKurGuestRoleAndWelcome(interaction.guild);
+      } catch (e) {
+        console.warn('[kur] post-kur misafir/karşılama:', e?.message || e);
+      }
       let memberLine = '';
       if (Array.isArray(payload.members) && payload.members.length > 0 && memberRestore) {
         memberLine = `\n• Üye rolleri: ${memberRestore.applied} güncellendi, ${memberRestore.skipped} atlandı (sunucuda yok / eşleşmeyen rol), ${memberRestore.failed} hata.`;
@@ -145,6 +151,11 @@ module.exports.runKur = async (interaction) => {
     const next = { ...cfg, ...applied };
     writeGuildConfig(gid, next);
     await grantPostSetupRoles(interaction.guild, next, interaction.user.id);
+    try {
+      await runPostKurGuestRoleAndWelcome(interaction.guild);
+    } catch (e) {
+      console.warn('[kur] post-kur misafir/karşılama:', e?.message || e);
+    }
     await interaction.followUp({
       content:
         '✅ **Varsayilan sablon kuruldu.** Yedek bulunmadigi icin varsayilan kanal/roller temizlenip HasBEY sablonu olusturuldu.',
