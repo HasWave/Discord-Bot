@@ -1,8 +1,8 @@
-HasBEY Discord Bot — Home Assistant Supervisor deposu
+HasBEY Discord Bot — Home Assistant Supervisor
 
-1. repository.json → "url" kendi GitHub repo adresiniz.
-2. Supervisor → Depo ekle → HasBEY Discord Bot → Kur.
-3. Yapılandır: discord_token + guild_id → Kaydet → Başlat.
-4. guilds/<sunucu_id>.json → /share/hasbey_discord_bot_data/guilds/ (File Editor).
+1. repository.json → "url" kendi GitHub adresiniz.
+2. Supervisor → Depo ekle → HasBEY Discord Bot → Kur / Derle.
+3. Yapılandırma: token, sunucu ID, kanal/rol ID’leri (boş bırakılanlar JSON’daki değeri korur).
+4. Kalıcı veri: /share/hasbey_discord_bot_data
 
 Detay: hasbey_discord_bot/README_SETUP.txt

@@ -1,4 +1,0 @@
-*.sh text eol=lf
-run.sh text eol=lf
-Dockerfile text eol=lf
-build.yaml text eol=lf

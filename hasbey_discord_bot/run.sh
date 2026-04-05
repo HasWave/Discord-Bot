@@ -10,6 +10,18 @@ if [ -r /data/options.json ]; then
       } catch (e) {}
     "
   )"
+  export CLIENT_ID="$(
+    node -e "
+      const fs = require('fs');
+      try {
+        const o = JSON.parse(fs.readFileSync('/data/options.json', 'utf8'));
+        process.stdout.write(String(o.client_id || '').trim());
+      } catch (e) {}
+    "
+  )"
+  if [ -n "$CLIENT_ID" ]; then
+    export APPLICATION_ID="$CLIENT_ID"
+  fi
   export GUILD_ID="$(
     node -e "
       const fs = require('fs');

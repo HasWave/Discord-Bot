@@ -1,7 +1,7 @@
 {
   "name": "hasbey",
   "version": "1.0.0",
-  "description": "HasBEY Discord Bot — Supervisor (GitHub)",
+  "description": "HasBEY Discord Bot — Home Assistant Supervisor",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

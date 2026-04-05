@@ -1,6 +1,0 @@
-# Supervisor, kısa adları (node:22-alpine) reddeder; tam referans gerekir.
-# Aksi halde build.yaml sıfırlanır ve homeassistant/base ile npm olmadan derlenir.
-build_from:
-  aarch64: docker.io/library/node:22-alpine
-  armv7: docker.io/library/node:22-alpine
-  amd64: docker.io/library/node:22-alpine

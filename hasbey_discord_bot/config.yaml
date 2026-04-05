@@ -1,11 +1,11 @@
 name: HasBEY Discord Bot
-version: '1.2.0'
+version: '2.0.0'
 slug: hasbey_discord_bot
 description: >-
-  Raspberry Pi / Home Assistant Supervisor. Yapılandır: (1) discord_token = Bot token.
-  (2) guild_id = sunucu ID (yalnız rakamlar veya .../guilds/ID.json içeren adres).
-  Sunucu ayarı: File Editor ile /share/hasbey_discord_bot_data/guilds/<SUNUCU_ID>.json
-  (PC’deki data/guilds/<id>.json içeriği). Token alanına URL yazmayın.
+  Kök HasBEY botunun Raspberry Pi Supervisor sürümü. Zorunlu: discord_token, guild_id.
+  Kanal/rol alanlarını doldurduğunuzda her başlangıçta data/guilds/<guild_id>.json güncellenir.
+  Boş bırakılan alanlar mevcut JSON değerini silmez. İsteğe bağlı: client_id (slash deploy),
+  bot_owner_user_id (setupComplete). Kurallar/Duyuru kanalı: bot_rules_channel_id, bot_announcement_channel_id.
 arch:
   - aarch64
   - amd64
@@ -19,7 +19,69 @@ map:
   - share:rw
 options:
   discord_token: ''
+  client_id: ''
   guild_id: ''
+  bot_owner_user_id: ''
+  bot_slash_commands_channel_id: ''
+  bot_guest_slash_channel_id: ''
+  bot_last_registered_display_channel_id: ''
+  bot_member_count_channel_id: ''
+  bot_lobby_voice_channel_id: ''
+  bot_temp_category_id: ''
+  bot_ara_command_channel_id: ''
+  bot_ara_notify_channel_id: ''
+  bot_stream_announce_channel_id: ''
+  bot_afk_voice_channel_id: ''
+  bot_registration_log_channel_id: ''
+  bot_player_category_id: ''
+  bot_rules_channel_id: ''
+  bot_announcement_channel_id: ''
+  bot_guest_role_id: ''
+  bot_member_role_id: ''
+  bot_owner_role_id: ''
+  bot_admin_role_id: ''
+  bot_mod_role_id: ''
+  bot_trial_mod_role_id: ''
+  bot_kick_mod_role_id: ''
+  bot_support_role_id: ''
+  bot_event_role_id: ''
+  bot_streamer_role_id: ''
+  bot_developer_role_id: ''
+  bot_vip_role_id: ''
+  bot_tag_role_id: ''
+  bot_female_role_id: ''
+  bot_drama_queen_role_id: ''
 schema:
   discord_token: password
+  client_id: str?
   guild_id: str
+  bot_owner_user_id: str?
+  bot_slash_commands_channel_id: str?
+  bot_guest_slash_channel_id: str?
+  bot_last_registered_display_channel_id: str?
+  bot_member_count_channel_id: str?
+  bot_lobby_voice_channel_id: str?
+  bot_temp_category_id: str?
+  bot_ara_command_channel_id: str?
+  bot_ara_notify_channel_id: str?
+  bot_stream_announce_channel_id: str?
+  bot_afk_voice_channel_id: str?
+  bot_registration_log_channel_id: str?
+  bot_player_category_id: str?
+  bot_rules_channel_id: str?
+  bot_announcement_channel_id: str?
+  bot_guest_role_id: str?
+  bot_member_role_id: str?
+  bot_owner_role_id: str?
+  bot_admin_role_id: str?
+  bot_mod_role_id: str?
+  bot_trial_mod_role_id: str?
+  bot_kick_mod_role_id: str?
+  bot_support_role_id: str?
+  bot_event_role_id: str?
+  bot_streamer_role_id: str?
+  bot_developer_role_id: str?
+  bot_vip_role_id: str?
+  bot_tag_role_id: str?
+  bot_female_role_id: str?
+  bot_drama_queen_role_id: str?

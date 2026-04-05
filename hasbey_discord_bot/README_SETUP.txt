@@ -1,29 +1,43 @@
-HasBEY Discord Bot — Home Assistant Supervisor (GitHub → Depo ekle → Kur)
-
-Bu klasör ana depodaki bot ile aynı src kullanır; Docker içinde yalnız node bot.js çalışır.
+HasBEY Discord Bot — Home Assistant Supervisor (kök bot ile aynı kod)
 
 ──────────────────────────────────────────────────────────────────
-Hedef: Token + Sunucu ID kaydet → Yeniden başlat → Discord’da çevrimiçi
+Yapılandırma alanları (hepsi isteğe bağlı doldurulabilir, boş = JSON’da eski değer kalır)
 ──────────────────────────────────────────────────────────────────
 
-1) GitHub’a bu repo’yu (Upload_Project veya sadece hasbey_discord_bot kökü) push edin.
-   repository.json içindeki "url" gerçek repo adresiniz olsun.
+Zorunlu:
+  discord_token     — Bot token
+  guild_id          — Sunucu ID (yalnız rakam veya .../guilds/ID.json URL)
 
-2) HA: Eklentiler → Depo ekle → HasBEY Discord Bot → Kur / Derle.
+Önerilen:
+  client_id         — Uygulama ID (slash / davet linki için)
+  bot_owner_user_id — Discord kullanıcı ID (setupComplete + sahip)
 
-3) Yapılandırma (2 alan):
-   • discord_token — Developer Portal → Bot → Token (göz ikonlu alan)
-   • guild_id — Sunucu ID (rakamlar) veya .../guilds/123...json URL’si
+Kanal ID (metin/ses/kategori):
+  bot_guest_slash_channel_id      — Misafir 「🤖」bot komut
+  bot_slash_commands_channel_id   — Ana bot komut
+  bot_registration_log_channel_id — Kayıt log
+  bot_last_registered_display_channel_id — Son kayıt görünümü
+  bot_member_count_channel_id    — Üye sayısı
+  bot_lobby_voice_channel_id     — Geçici ses lobisi
+  bot_temp_category_id           — Geçici ses kategorisi
+  bot_ara_command_channel_id     — Ara bot komut
+  bot_ara_notify_channel_id      — Ara bildirim
+  bot_stream_announce_channel_id — Yayın duyuru
+  bot_afk_voice_channel_id       — AFK ses
+  bot_player_category_id         — Oyuncu kategorisi
+  bot_rules_channel_id           — Kurallar
+  bot_announcement_channel_id    — Duyurular
 
-4) Sunucu JSON (kanal/rol):
-   /share/hasbey_discord_bot_data/guilds/<guild_id>.json
-   PC’de /start sonrası oluşan data/guilds/<id>.json dosyasının içeriğini buraya koyun.
+Rol ID:
+  bot_guest_role_id, bot_member_role_id
+  bot_owner_role_id, bot_admin_role_id, bot_mod_role_id
+  bot_trial_mod_role_id, bot_kick_mod_role_id
+  bot_support_role_id, bot_event_role_id, bot_streamer_role_id
+  bot_developer_role_id, bot_vip_role_id, bot_tag_role_id
+  bot_female_role_id, bot_drama_queen_role_id
 
-5) Kaydet → Eklentiyi Başlat. Günlükte: "Bot başlatıldı" / "Oturum açıldı" görmelisiniz.
+Her başlangıç: /data/options.json → data/guilds/<guild_id>.json birleştirilir.
 
-6) Slash: PC’de ana depoda aynı token ile: npm run deploy-commands
+Kalıcı veri: /share/hasbey_discord_bot_data
 
-7) Dikkat:
-   • İmajda config.json YOK; token yalnızca HA yapılandırmasından gelir.
-   • Aynı token ile PC’de ve Pi’de aynı anda bot çalıştırmayın (tek oturum).
-   • İzleme (Watchdog) çökme döngüsünde geçici kapatılabilir.
+Slash: PC’de ana depoda npm run deploy-commands (aynı token).
