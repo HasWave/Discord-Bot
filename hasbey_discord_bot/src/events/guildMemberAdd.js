@@ -1,11 +1,20 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
-const { readGuildConfig } = require('../lib/storage');
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  AttachmentBuilder,
+  PermissionFlagsBits,
+} = require('discord.js');
+const { readGuildConfig, writeGuildConfig } = require('../lib/storage');
 const { isJoinOnboardingReady } = require('../lib/guards');
-const { resolveGuestRoleId } = require('../lib/resolveRoles');
+const { resolveGuestRoleId, resolveMemberRoleId } = require('../lib/resolveRoles');
 const { resolveWelcomeChannelId } = require('../lib/resolveChannels');
 const { recordJoin } = require('../lib/stats');
 const { queueMemberCountUpdate } = require('../services/channelStatus');
 const { createWelcomeCard } = require('../services/welcomeCard');
+const { syncGuestChannelRestrictions } = require('../services/guestChannelSync');
+const { TEMPLATE_GUEST_ROLE_NAME } = require('../services/defaultTemplate');
 
 function parseHexColor(input, fallback = 0xfee75c) {
   const raw = String(input || '')
@@ -15,19 +24,71 @@ function parseHexColor(input, fallback = 0xfee75c) {
   return parseInt(raw, 16);
 }
 
+async function ensureGuestRoleForRegistration(guild, cfg) {
+  await guild.roles.fetch().catch(() => {});
+  let guestId = resolveGuestRoleId(guild, cfg);
+  if (guestId) return guestId;
+
+  const name = String(cfg.roles?.guestRoleName || TEMPLATE_GUEST_ROLE_NAME).slice(0, 100);
+  let role = guild.roles.cache.find((r) => r.name === name && !r.managed);
+  if (
+    !role &&
+    guild.members.me?.permissions?.has(PermissionFlagsBits.ManageRoles)
+  ) {
+    try {
+      role = await guild.roles.create({
+        name,
+        permissions: [],
+        hoist: false,
+        reason: 'HasBEY: kayıt akışı — misafir rolü yoktu',
+      });
+      await role
+        .setPosition(1, { relative: false, reason: 'HasBEY: misafir rolü en alta' })
+        .catch(() => {});
+    } catch (e) {
+      console.warn(`[guildMemberAdd] misafir rolü oluşturulamadı (${guild.name}): ${e.message}`);
+      return null;
+    }
+  }
+  if (!role) return null;
+
+  const next = readGuildConfig(guild.id);
+  next.roles = { ...next.roles, guestRoleId: role.id };
+  writeGuildConfig(guild.id, next);
+  await guild.channels.fetch().catch(() => {});
+  await syncGuestChannelRestrictions(guild, readGuildConfig(guild.id), { staggerMs: 80 }).catch(() => {});
+  return role.id;
+}
+
 module.exports = async function onGuildMemberAdd(member) {
   recordJoin(member.guild.id, { userId: member.id, tag: member.user.tag });
 
-  const cfg = readGuildConfig(member.guild.id);
+  let cfg = readGuildConfig(member.guild.id);
   queueMemberCountUpdate(member.client, member.guild);
 
   const onboarding = isJoinOnboardingReady(cfg, member.guild);
-  const guestRoleId = resolveGuestRoleId(member.guild, cfg);
-  if (onboarding && guestRoleId && !member.user.bot) {
-    try {
-      await member.roles.add(guestRoleId, 'Yeni üye — Misafir (yeniden katılım dahil)');
-    } catch (e) {
-      console.warn(`[guildMemberAdd] misafir rolü verilemedi (üye ${member.user.tag}): ${e.message}`);
+
+  if (!member.user.bot) {
+    const guestRoleId = await ensureGuestRoleForRegistration(member.guild, cfg);
+    cfg = readGuildConfig(member.guild.id);
+    const memberRoleId = resolveMemberRoleId(member.guild, cfg);
+    if (memberRoleId && member.roles.cache.has(memberRoleId)) {
+      try {
+        await member.roles.remove(memberRoleId, 'Kayıt akışı: önce misafir');
+      } catch (e) {
+        console.warn(`[guildMemberAdd] teşkilat rolü alınamadı (${member.user.tag}): ${e.message}`);
+      }
+    }
+    if (guestRoleId) {
+      try {
+        await member.roles.add(guestRoleId, 'Yeni üye — Misafir (yeniden katılım dahil)');
+        await member.guild.channels.fetch().catch(() => {});
+        await syncGuestChannelRestrictions(member.guild, readGuildConfig(member.guild.id), {
+          staggerMs: 80,
+        }).catch(() => {});
+      } catch (e) {
+        console.warn(`[guildMemberAdd] misafir rolü verilemedi (üye ${member.user.tag}): ${e.message}`);
+      }
     }
   }
 
@@ -49,9 +110,9 @@ module.exports = async function onGuildMemberAdd(member) {
 
   const lines = cfg.customMessages?.welcomeLines;
   const defaultDesc =
-    'Hoş geldin! Sunucu odalarını görmek için önce kayıt olmalısın.\n\n' +
-    '**Kayıt:** aşağıdaki **Kayıt Ol** butonuna tıkla (veya `/kaydol`). Formda **ad soyad**, **takma ad** ve **yaş** istenir. Sunucu adın **Takma ad | yaş** yapılması eklentiden açılıp kapatılabilir. Discord **kullanıcı adın** otomatik değişmez.\n\n' +
-    'Slash komutların kanalı: `/komutlar`';
+    'Hoş geldin! Şu an **misafir** olarak **Sunucu durumu** bölümündeki kanalları görebilirsin (gelen-var kanalına yazı yazılamaz; sistem giriş/çıkış mesajları oraya düşer).\n\n' +
+    '**Kayıt:** Aşağıdaki **Kayıt Ol** butonuna tıkla — **teşkilat** rolünü alırsın, misafir rolün kalkar; ek form yok. Diğer kanallar açılır.\n\n' +
+    'Komut listesi için (izin verilen kanallarda): `/komutlar`';
   let description = defaultDesc;
   if (Array.isArray(lines) && lines.length > 0) {
     const sub = (s) =>
@@ -79,9 +140,16 @@ module.exports = async function onGuildMemberAdd(member) {
     if (imageUrl) embed.setImage(imageUrl);
   }
 
-  const registerRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('hby:kaydol_open').setLabel('Kayıt Ol').setStyle(ButtonStyle.Primary)
-  );
-
-  await ch.send({ content: `${member}`, embeds: [embed], components: [registerRow], files }).catch(() => {});
+  await ch
+    .send({
+      content: `${member}`,
+      embeds: [embed],
+      files,
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('hby:kaydol_open').setLabel('Kayıt Ol').setStyle(ButtonStyle.Primary)
+        ),
+      ],
+    })
+    .catch(() => {});
 };

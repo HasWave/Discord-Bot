@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { dataDir, guildFile, backupDir, channelIdsJsonPath, backupImportTemplatePath } = require('./paths');
+const { readGuildOverlayFromMainConfig } = require('./mainConfig');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -20,7 +21,8 @@ function readChannelIdsOverlay(guildId) {
 function mergeChannelsWithOverlay(guildId, channelsObj) {
   const ov = readChannelIdsOverlay(guildId);
   const base = channelsObj && typeof channelsObj === 'object' ? { ...channelsObj } : {};
-  return { ...base, ...ov };
+  const fromMainConfig = readGuildOverlayFromMainConfig(path.join(__dirname, '..', '..'), guildId);
+  return { ...base, ...ov, ...(fromMainConfig.channels || {}) };
 }
 
 function syncChannelIdsJsonFile(guildId, channels) {
@@ -44,9 +46,6 @@ function syncChannelIdsJsonFile(guildId, channels) {
 function defaultFeatures() {
   return {
     welcomeOnJoin: true,
-    registrationLog: true,
-    /** Kayıtta sunucu takma adını Takma ad | yaş yap (kapalıysa isim değişmez) */
-    registrationNickAgeFormat: true,
     memberCountChannel: true,
     lastRegisteredDisplay: true,
     tempVoiceFromLobby: true,
@@ -59,8 +58,10 @@ function defaultFeatures() {
     triggerReplies: true,
     /** Yasaklı kelime filtresi (mesajı sil + uyar) */
     wordFilter: true,
-    /** Misafir bot komut kanalında yazınca “kaydol” hatırlatması (mesaj süresi: timeouts) */
+    /** Misafir bot komut kanalında yazınca kayıt hatırlatması (mesaj süresi: timeouts) */
     guestSlashRegisterReminder: true,
+    /** /at, /kilitle, /limit, /devret, /ban, /kick, /unban — menüden kapatılabilir */
+    staffModerationCommands: true,
   };
 }
 
@@ -159,7 +160,7 @@ function normalizeWelcomeCard(raw, fallback) {
   };
 }
 
-/** Guild JSON’da guestRoleId yoksa env.json `DEFAULT_GUEST_ROLE_ID` (bot başlarken yüklenir). */
+/** Guild JSON’da guestRoleId yoksa config.json içindeki Misafir Rol ID fallback’i kullanılır. */
 function guestRoleIdFromEnv() {
   const v = process.env.DEFAULT_GUEST_ROLE_ID;
   if (v == null) return null;
@@ -174,6 +175,15 @@ function applyGuestRoleIdEnvFallback(roles) {
   if (cur != null && String(cur).trim() !== '') return out;
   const fromEnv = guestRoleIdFromEnv();
   if (fromEnv) out.guestRoleId = fromEnv;
+  return out;
+}
+
+function applyMainConfigRoleOverlay(guildId, roles) {
+  const out = { ...(roles || {}) };
+  const fromMainConfig = readGuildOverlayFromMainConfig(path.join(__dirname, '..', '..'), guildId);
+  const overlay = fromMainConfig.roles || {};
+  if (overlay.memberRoleId) out.memberRoleId = overlay.memberRoleId;
+  if (overlay.guestRoleId) out.guestRoleId = overlay.guestRoleId;
   return out;
 }
 
@@ -194,6 +204,7 @@ function defaultGuildRecord() {
     timeouts: {
       afkMinutes: 30,
       guestRegisterReminderDeleteMinutes: 5,
+      /** `dm_once` = özelden 1 kez (kalıcı); `channel` = kanalda yanıt + süre sonunda sil */
       guestRegisterReminderStyle: 'dm_once',
     },
     createdAt: null,
@@ -208,6 +219,7 @@ function readGuildConfig(guildId) {
   if (!fs.existsSync(fp)) {
     const rec = { ...defaultGuildRecord() };
     rec.channels = mergeChannelsWithOverlay(guildId, rec.channels);
+    rec.roles = applyMainConfigRoleOverlay(guildId, rec.roles);
     return rec;
   }
   try {
@@ -230,7 +242,7 @@ function readGuildConfig(guildId) {
             }))
             .filter((r) => r.trigger.length > 0 && r.response.length > 0)
         : base.customMessages.triggerReplies;
-    return {
+    const out = {
       ...base,
       ...parsed,
       roles: applyGuestRoleIdEnvFallback({
@@ -252,9 +264,12 @@ function readGuildConfig(guildId) {
       },
       timeouts: { ...base.timeouts, ...(parsed.timeouts || {}) },
     };
+    out.roles = applyMainConfigRoleOverlay(guildId, out.roles);
+    return out;
   } catch {
     const rec = { ...defaultGuildRecord() };
     rec.channels = mergeChannelsWithOverlay(guildId, rec.channels);
+    rec.roles = applyMainConfigRoleOverlay(guildId, rec.roles);
     return rec;
   }
 }

@@ -57,7 +57,7 @@ async function maybeGuestSlashRegisterReminder(message, cfg) {
     if (hasReceivedGuestRegisterDm(message.guild.id, message.author.id)) return;
     const text =
       `**${guildName}** sunucusunda henüz kayıt olmadın.\n\n` +
-      `Misafir bot komut kanalından **Kayıt Ol** butonuna tıkla veya \`/kaydol\` kullan.`;
+      `Misafir bot komut kanalındaki **Kayıt Ol** butonuna tıkla.`;
     try {
       await message.author.send({ content: text.slice(0, 2000) });
       markReceivedGuestRegisterDm(message.guild.id, message.author.id);
@@ -75,7 +75,7 @@ async function maybeGuestSlashRegisterReminder(message, cfg) {
 
   const deleteMin = normalizeGuestReminderDeleteMinutes(cfg.timeouts?.guestRegisterReminderDeleteMinutes);
   const deleteMs = deleteMin * 60 * 1000;
-  const text = `${message.author}, henüz kayıt olmadın. **Kayıt Ol** butonunu kullan veya \`/kaydol\` yaz.`;
+  const text = `${message.author}, henüz kayıt olmadın. **Kayıt Ol** butonunu kullan.`;
 
   try {
     const reply = await message.reply({
@@ -119,7 +119,7 @@ module.exports = async function onMessageCreate(message) {
       lastReply.set(key, now);
       await message
         .reply({
-          content: '`/kur` mu demek istedin? Kayıt için de `/kaydol` kullanabilirsin.',
+          content: '`/kur` mu demek istedin? Kayıt için misafir bot komut kanalındaki **Kayıt Ol** butonunu kullan.',
           allowedMentions: { users: [message.author.id] },
         })
         .catch(() => {});

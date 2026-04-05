@@ -30,7 +30,10 @@ function resolveGuestRoleId(guild, cfg) {
   const raw = cfg?.roles?.guestRoleId;
   if (raw != null && raw !== '') {
     const id = String(raw).trim();
-    if (/^\d{10,25}$/.test(id)) return id;
+    if (/^\d{10,25}$/.test(id)) {
+      const role = guild.roles.cache.get(id);
+      if (role && !role.managed) return id;
+    }
   }
   const name = cfg?.roles?.guestRoleName != null ? String(cfg.roles.guestRoleName).trim() : '';
   if (!name) return null;

@@ -7,38 +7,18 @@ const { resolveRegistrationLogTargetId } = require('./lib/resolveChannels');
 const { ensureBotData } = require('./services/tempVoice');
 const { runKur } = require('./commands/kur');
 const { runYedekle } = require('./commands/yedekle');
-const { showKaydolModal } = require('./commands/kaydol');
 const { meHas, NEED_MANAGE } = require('./lib/permissions');
 const { updateLastRegisteredDisplay } = require('./services/channelStatus');
 const { clearGuestRegisterDmOnce } = require('./lib/guestRegisterDmOnceState');
+
+/** Eklenti: staffModerationCommands — kapalıyken yanıt verilmez */
+const STAFF_MOD_SLASH = new Set(['at', 'kilitle', 'limit', 'devret', 'ban', 'kick', 'unban']);
 
 function pendingKey(guildId, userId) {
   return `${guildId}:${userId}`;
 }
 
-/** Sunucu takma adı — @ ` ve boşluk normalize, max 32 */
-function normalizeServerNickname(raw) {
-  return String(raw || '')
-    .replace(/\s+/g, ' ')
-    .replace(/[@|`]/g, '')
-    .trim()
-    .slice(0, 32);
-}
-
-/** Takma ad | yaş — Discord 32 karakter sınırına sığdır */
-function buildNicknameNickAge(nickPart, ageNum) {
-  const nick = String(nickPart || '').trim();
-  const ageStr = String(ageNum);
-  const sep = ' | ';
-  let combined = `${nick}${sep}${ageStr}`;
-  if (combined.length <= 32) return combined;
-  const room = 32 - sep.length - ageStr.length;
-  if (room < 1) return ageStr.slice(0, 32);
-  const shortNick = nick.slice(0, room).trim();
-  return `${shortNick}${sep}${ageStr}`.slice(0, 32);
-}
-
-/** Slash için önce defer edildiyse editReply, yoksa reply (ör. kaydol / showModal) */
+/** Slash için önce defer edildiyse editReply, yoksa reply */
 async function slashRespond(interaction, options) {
   if (interaction.deferred) {
     return interaction.editReply(options);
@@ -46,123 +26,77 @@ async function slashRespond(interaction, options) {
   return interaction.reply(options);
 }
 
-async function handleModalSubmit(interaction) {
-  if (interaction.customId !== 'hby:kaydol') return false;
+/**
+ * Misafir → teşkilat: form yok; Kayıt Ol butonu.
+ */
+async function completeJoinFromButton(interaction) {
+  const guild = interaction.guild;
+  const member = interaction.member;
+  const cfg = readGuildConfig(guild.id);
 
-  if (!interaction.guild || !interaction.member) {
-    await interaction.reply({ content: 'Kayıt yalnızca sunucuda yapılabilir.', flags: EPHEMERAL });
-    return true;
-  }
-
-  const cfg = readGuildConfig(interaction.guild.id);
   if (!isGuildSetup(cfg)) {
-    await interaction.reply({ content: 'Sunucu kurulumu yok.', flags: EPHEMERAL });
-    return true;
+    await interaction.editReply({ content: 'Sunucu henüz kurulmadı. Yönetim `/start` yapmalı.' });
+    return;
   }
-  const memberRoleId = resolveMemberRoleId(interaction.guild, cfg);
+
+  const memberRoleId = resolveMemberRoleId(guild, cfg);
   if (!memberRoleId) {
-    await interaction.reply({
+    await interaction.editReply({
       content:
-        'Kayıtlı rolü çözülemedi. `guilds` kaydında `memberRoleId` yoksa sunucuda **Kayıtlı** adlı bir rol olmalı (veya `memberRoleName` ile eşleşmeli).',
-      flags: EPHEMERAL,
+        'Teşkilat rolü bulunamadı. Yapılandırmada **Kayıtlı** rolü (`memberRoleId` / `memberRoleName`) tanımlı olmalı.',
     });
-    return true;
+    return;
   }
 
-  const adsoyad = String(interaction.fields.getTextInputValue('adsoyad') || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const nickRaw = interaction.fields.getTextInputValue('nick');
-  const yas = interaction.fields.getTextInputValue('yas');
-  const nick = normalizeServerNickname(nickRaw);
-  if (!adsoyad || !nick) {
-    await interaction.reply({
-      content: 'Ad soyad ve sunucu takma adı zorunlu; geçerli değerler gir.',
-      flags: EPHEMERAL,
+  if (member.roles.cache.has(memberRoleId)) {
+    await interaction.editReply({ content: 'Zaten **teşkilat** üyesisin.' });
+    return;
+  }
+
+  const guestRoleId = resolveGuestRoleId(guild, cfg);
+  if (guestRoleId && !member.roles.cache.has(guestRoleId)) {
+    await interaction.editReply({
+      content:
+        'Bu buton yalnızca **misafir** rolündeki üyeler içindir. Sorun devam ederse bir yöneticiye yaz.',
     });
-    return true;
+    return;
   }
 
-  const ageNum = parseInt(String(yas).replace(/\D/g, ''), 10);
-  if (!Number.isFinite(ageNum) || ageNum < 1 || ageNum > 120) {
-    await interaction.reply({ content: 'Geçerli bir yaş gir (1–120).', flags: EPHEMERAL });
-    return true;
-  }
-
-  const guestRoleId = resolveGuestRoleId(interaction.guild, cfg);
   if (guestRoleId) {
-    try {
-      await interaction.member.roles.remove(guestRoleId, 'Kayıt (/kaydol)');
-    } catch {
-      /* */
-    }
+    await member.roles.remove(guestRoleId, 'Kayıt Ol (buton)').catch(() => {});
   }
 
   try {
-    await interaction.member.roles.add(memberRoleId, 'Kayıt (/kaydol)');
+    await member.roles.add(memberRoleId, 'Kayıt Ol (buton)');
   } catch {
-    await interaction.reply({ content: 'Rol verilemedi (rol hiyerarşisi / yetki).', flags: EPHEMERAL });
-    return true;
+    await interaction.editReply({ content: 'Rol verilemedi (rol hiyerarşisi veya bot yetkisi).' });
+    return;
   }
 
-  clearGuestRegisterDmOnce(interaction.guild.id, interaction.user.id);
+  clearGuestRegisterDmOnce(guild.id, member.id);
 
-  const useNickAge = cfg.features?.registrationNickAgeFormat !== false;
-  const appliedServerNick = useNickAge ? buildNicknameNickAge(nick, ageNum) : null;
-
-  if (useNickAge && appliedServerNick) {
-    try {
-      await interaction.member.setNickname(appliedServerNick, 'Kayıt /kaydol');
-    } catch {
-      /* Yetki yok veya sunucu sahibi — sessiz */
-    }
+  const displayForLastReg = member.displayName || member.user.globalName || member.user.username;
+  try {
+    await updateLastRegisteredDisplay(interaction.client, guild, cfg, displayForLastReg);
+  } catch (e) {
+    console.error('[kayit buton] son kayit kanali', e);
   }
 
   const logId = resolveRegistrationLogTargetId(cfg);
-  const logCh = logId ? interaction.guild.channels.cache.get(logId) : null;
-  if (cfg.features?.registrationLog !== false && logCh?.isTextBased()) {
-    const discLine =
-      [interaction.user.globalName, interaction.user.username].filter(Boolean).join(' · ') ||
-      interaction.user.username;
+  const logCh = logId ? guild.channels.cache.get(logId) : null;
+  if (logCh?.isTextBased()) {
     const embed = new EmbedBuilder()
-      .setTitle('📋 Yeni kayıt')
-      .setDescription(`Üye: <@${interaction.user.id}>`)
-      .addFields(
-        { name: 'Ad soyad', value: adsoyad.slice(0, 256) || '—', inline: false },
-        { name: 'Form takma adı', value: nick || '—', inline: true },
-        { name: 'Yaş', value: String(ageNum), inline: true },
-        {
-          name: 'Sunucu adı uygulaması',
-          value: useNickAge ? `**${appliedServerNick || '—'}**` : 'Kapalı (eklenti)',
-          inline: false,
-        },
-        { name: 'Discord kullanıcı adı (değişmez)', value: discLine.slice(0, 80), inline: false },
-        { name: 'Hesap', value: `\`${interaction.user.id}\``, inline: true }
-      )
-      .setColor(0x5865f2)
+      .setTitle('✅ Teşkilata katılım')
+      .setDescription(`Üye: ${member}`)
+      .setColor(0x57f287)
       .setTimestamp(new Date());
     await logCh.send({ embeds: [embed] }).catch(() => {});
   }
 
-  try {
-    await updateLastRegisteredDisplay(
-      interaction.client,
-      interaction.guild,
-      cfg,
-      useNickAge ? appliedServerNick || nick : nick
-    );
-  } catch (e) {
-    console.error('[kaydol modal]', e);
-  }
-
-  const nickMsg = useNickAge
-    ? `Sunucu takma adın: **${appliedServerNick}** (Takma ad | yaş).`
-    : 'Sunucu takma adın **değiştirilmedi** (Takma ad | yaş eklentisi kapalı).';
-  await interaction.reply({
-    content: `✅ Kayıt tamamlandı. ${nickMsg} Discord kullanıcı adın aynı kaldı. Diğer kanalları görebilirsin.`,
-    flags: EPHEMERAL,
+  await interaction.editReply({
+    content:
+      '✅ **Kayıt tamamlandı.** Teşkilat rolün verildi; artık sunucunun diğer kanallarına erişebilirsin.',
   });
-  return true;
 }
 
 async function handleButton(interaction) {
@@ -170,7 +104,25 @@ async function handleButton(interaction) {
   if (!id.startsWith('hby:')) return false;
 
   if (id === 'hby:kaydol_open') {
-    await showKaydolModal(interaction);
+    if (!interaction.guild || !interaction.member) {
+      await interaction.reply({ content: 'Bu işlem yalnızca sunucuda yapılabilir.', flags: EPHEMERAL });
+      return true;
+    }
+
+    const cfg = readGuildConfig(interaction.guild.id);
+    const guestCh = cfg.channels?.guestSlashCommandsChannelId
+      ? String(cfg.channels.guestSlashCommandsChannelId).trim()
+      : '';
+    if (guestCh && interaction.channelId !== guestCh) {
+      await interaction.reply({
+        content: `Kayıt için **Kayıt Ol** butonunu yalnızca misafir bot komut kanalında kullan: <#${guestCh}>.`,
+        flags: EPHEMERAL,
+      });
+      return true;
+    }
+
+    await interaction.deferReply({ flags: EPHEMERAL });
+    await completeJoinFromButton(interaction);
     return true;
   }
 
@@ -278,7 +230,7 @@ async function routeSlash(interaction, commands) {
   const guestCmdCh = cfgPre.channels?.guestSlashCommandsChannelId
     ? String(cfgPre.channels.guestSlashCommandsChannelId).trim()
     : '';
-  const slashHerKanal = name === 'komutlar' || name === 'kaydol';
+  const slashHerKanal = name === 'komutlar' || name === 'afk_mod';
   const chId = interaction.channelId ? String(interaction.channelId).trim() : '';
   /** Misafir kanalı, ana kanaldan farklı bir ID ise ek izinli kanal sayılır. */
   const guestDistinct = Boolean(guestCmdCh && guestCmdCh !== onlyCh);
@@ -310,8 +262,26 @@ async function routeSlash(interaction, commands) {
       await komutlarCmd.execute(interaction);
       return;
     }
+    if (name === 'afk_mod') {
+      const afkModCmd = commands.get('afk_mod');
+      if (!afkModCmd) {
+        await slashRespond(interaction, { content: '`/afk_mod` yüklü değil.', flags: EPHEMERAL });
+        return;
+      }
+      await afkModCmd.execute(interaction);
+      return;
+    }
     await slashRespond(interaction, {
       content: 'Bu bot henüz **kurulmadı**. Yönetim `/start` ile sahiplik kaydı yapmalı.',
+      flags: EPHEMERAL,
+    });
+    return;
+  }
+
+  if (STAFF_MOD_SLASH.has(name) && cfgPre.features?.staffModerationCommands === false) {
+    await slashRespond(interaction, {
+      content:
+        '**Yetkili slash komutları** bu sunucuda kapalı. Menü → **Discord Ayarları** → **Eklentiler** üzerinden açın (/at, /ban, /kick, geçici oda komutları vb.).',
       flags: EPHEMERAL,
     });
     return;
@@ -326,21 +296,13 @@ async function routeSlash(interaction, commands) {
 }
 
 async function handleInteraction(interaction, commands) {
-  if (interaction.isModalSubmit()) {
-    const ok = await handleModalSubmit(interaction);
-    if (ok) return;
-  }
-
   if (interaction.isButton()) {
     const ok = await handleButton(interaction);
     if (ok) return;
   }
 
   if (interaction.isChatInputCommand()) {
-    const noDefer = interaction.commandName === 'kaydol';
-    if (!noDefer) {
-      await interaction.deferReply({ flags: EPHEMERAL });
-    }
+    await interaction.deferReply({ flags: EPHEMERAL });
     try {
       await routeSlash(interaction, commands);
     } catch (e) {

@@ -55,8 +55,8 @@ module.exports = {
 
     await interaction.editReply({
       content: on
-        ? '🤖 Afk Taşıma Eklentisi Açıldı.'
-        : '🤖 Afk Taşıma Eklentisi Kapatıldı.',
+        ? '🤖 **Afk Taşıma Eklentisi Aktif: Açıldı**'
+        : '🤖 **Afk Taşıma Eklentisi Aktif: Kapandı**',
       flags: EPHEMERAL,
     });
   },

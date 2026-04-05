@@ -31,6 +31,11 @@ async function grantPostSetupRoles(guild, cfg, actorUserId) {
   const me = guild.members.me || (await guild.members.fetch(guild.client.user.id).catch(() => null));
   if (me && botRole) {
     await me.roles.add(botRole.id, 'Bota bot rolu').catch(() => {});
+    if (botRole.editable && !botRole.managed) {
+      await botRole
+        .setPosition(1, { relative: false, reason: 'HasBEY: bot rolü en alta' })
+        .catch(() => {});
+    }
   }
 }
 

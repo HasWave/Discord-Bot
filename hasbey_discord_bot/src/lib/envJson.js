@@ -1,173 +1,121 @@
 const fs = require('fs');
 const path = require('path');
-const dotenv = require('dotenv');
+const { mainConfigPath, readMainConfig, readBotEnvFromMainConfig } = require('./mainConfig');
 
-/**
- * Önce .env (varsa), sonra kök env.json — JSON aynı anahtarları ezer.
- * env.json hem camelCase hem UPPER_SNAKE kabul eder.
- */
-function normalizeGuildIdsValue(raw) {
-  if (raw == null) return '';
-  if (Array.isArray(raw)) {
-    return raw.map((s) => String(s).trim()).filter(Boolean).join(',');
-  }
-  return String(raw).trim();
+function configPath(root) {
+  return mainConfigPath(root);
 }
 
-function applyEnvJsonToProcess(envPath) {
-  if (!fs.existsSync(envPath)) return;
-  let j;
-  try {
-    j = JSON.parse(fs.readFileSync(envPath, 'utf8'));
-  } catch {
-    return;
-  }
-  if (!j || typeof j !== 'object') return;
-
-  const pick = (...keys) => {
-    for (const k of keys) {
-      if (k in j && j[k] != null) {
-        const s = typeof j[k] === 'string' ? j[k].trim() : String(j[k]).trim();
-        if (s) return s;
-      }
-    }
-    return '';
-  };
-
-  const pairs = [];
-  const t = pick('DISCORD_TOKEN', 'discordToken');
-  if (t) pairs.push(['DISCORD_TOKEN', t.replace(/^["']|["']$/g, '').trim()]);
-  const g = pick('GUILD_ID', 'guildId');
-  if (g) pairs.push(['GUILD_ID', g]);
-  if (Array.isArray(j.guildIds) && j.guildIds.length) {
-    const joined = normalizeGuildIdsValue(j.guildIds);
-    if (joined) pairs.push(['GUILD_IDS', joined]);
-  } else {
-    const gs = pick('GUILD_IDS', 'guildIds');
-    if (gs) pairs.push(['GUILD_IDS', normalizeGuildIdsValue(gs)]);
-  }
-  const c = pick('CLIENT_ID', 'clientId', 'APPLICATION_ID', 'applicationId');
-  if (c) {
-    pairs.push(['CLIENT_ID', c]);
-    pairs.push(['APPLICATION_ID', c]);
-  }
-  const pk = pick('DISCORD_PUBLIC_KEY', 'discordPublicKey', 'publicKey');
-  if (pk) pairs.push(['DISCORD_PUBLIC_KEY', pk]);
-  const guestDef = pick('DEFAULT_GUEST_ROLE_ID', 'defaultGuestRoleId');
-  if (guestDef && /^\d{10,25}$/.test(guestDef)) pairs.push(['DEFAULT_GUEST_ROLE_ID', guestDef]);
-
-  for (const [k, v] of pairs) {
-    if (v) process.env[k] = v;
-  }
-
-  for (const [k, val] of Object.entries(j)) {
-    if (typeof k !== 'string' || val == null) continue;
-    if (/^[A-Z][A-Z0-9_]*$/.test(k)) {
-      const s = typeof val === 'string' ? val.trim() : String(val).trim();
-      if (s) process.env[k] = s;
-    }
-  }
+function writeMainConfig(root, obj) {
+  const p = configPath(root);
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8');
 }
 
-/** Bot / deploy / menü girişi — root = HasBEY proje kökü */
+function ensureObject(v) {
+  return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+}
+
+/** Bot / deploy / menü girişi — sadece merkezi config.json kullanılır */
 function loadProjectEnv(root) {
-  const envDotenv = path.join(root, '.env');
-  // .env proje kökünden okunur (cwd’den bağımsız). override: true → boş/yarım process.env yerel .env ile dolsun.
-  dotenv.config({ path: envDotenv, override: true });
-  const envJson = path.join(root, 'env.json');
-  applyEnvJsonToProcess(envJson);
-  try {
-    if (fs.existsSync(envJson)) {
-      const obj = readEnvJsonObject(root);
-      if (sanitizeEnvGuildIdFields(obj)) writeEnvJsonObject(root, obj);
-    }
-  } catch {
-    /* */
+  const cfgEnv = readBotEnvFromMainConfig(root);
+  if (cfgEnv.DISCORD_TOKEN) process.env.DISCORD_TOKEN = cfgEnv.DISCORD_TOKEN;
+  if (cfgEnv.GUILD_ID) process.env.GUILD_ID = cfgEnv.GUILD_ID;
+  if (cfgEnv.CLIENT_ID) {
+    process.env.CLIENT_ID = cfgEnv.CLIENT_ID;
+    process.env.APPLICATION_ID = cfgEnv.CLIENT_ID;
   }
+  if (cfgEnv.DISCORD_PUBLIC_KEY) process.env.DISCORD_PUBLIC_KEY = cfgEnv.DISCORD_PUBLIC_KEY;
+
+  const cfg = readMainConfig(root);
+  const roles = ensureObject(cfg['Rol Ayarları']);
+  const guestRoleId = String(roles['Misafir Rol ID'] || '').trim();
+  if (/^\d{10,25}$/.test(guestRoleId)) process.env.DEFAULT_GUEST_ROLE_ID = guestRoleId;
 }
 
+/** Legacy API adı korunuyor: artık config.json yolunu döndürür */
 function envJsonPath(root) {
-  return path.join(root, 'env.json');
+  return configPath(root);
 }
 
+/** Legacy API adı korunuyor: artık config.json nesnesini döndürür */
 function readEnvJsonObject(root) {
-  const p = envJsonPath(root);
-  if (!fs.existsSync(p)) return {};
-  try {
-    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-    return j && typeof j === 'object' ? j : {};
-  } catch {
-    return {};
-  }
+  return readMainConfig(root);
 }
 
-/** GUILD_ID doluysa anlamsız boş GUILD_IDS / guildIds dizilerini kaldır (tek sunucu senaryosu) */
-function sanitizeEnvGuildIdFields(obj) {
-  if (!obj || typeof obj !== 'object') return false;
-  const gid = String(obj.GUILD_ID || obj.guildId || '').trim();
-  if (!gid || !/^\d{10,30}$/.test(gid)) return false;
-  let changed = false;
-  if (Array.isArray(obj.GUILD_IDS) && obj.GUILD_IDS.length === 0) {
-    delete obj.GUILD_IDS;
-    changed = true;
-  }
-  if (Array.isArray(obj.guildIds) && obj.guildIds.length === 0) {
-    delete obj.guildIds;
-    changed = true;
-  }
-  return changed;
-}
-
+/** Legacy API adı korunuyor: artık config.json yazar */
 function writeEnvJsonObject(root, obj) {
-  sanitizeEnvGuildIdFields(obj);
-  fs.writeFileSync(envJsonPath(root), JSON.stringify(obj, null, 2), 'utf8');
+  writeMainConfig(root, ensureObject(obj));
 }
 
-/** Menü: tek üst düzey anahtar güncelle (UPPER_SNAKE) + process.env */
 function setEnvJsonKeyUpper(root, key, value) {
-  const obj = readEnvJsonObject(root);
-  obj[key] = String(value).trim();
-  writeEnvJsonObject(root, obj);
-  process.env[key] = obj[key];
+  const cfg = ensureObject(readMainConfig(root));
+  cfg['Discord & Bot'] = ensureObject(cfg['Discord & Bot']);
+  cfg['Rol Ayarları'] = ensureObject(cfg['Rol Ayarları']);
+  const v = String(value ?? '').trim();
+
+  if (key === 'DISCORD_TOKEN') cfg['Discord & Bot']['Discord Token'] = v;
+  else if (key === 'GUILD_ID') cfg['Discord & Bot']['Sunucu ID'] = v;
+  else if (key === 'CLIENT_ID' || key === 'APPLICATION_ID') cfg['Discord & Bot']['Uygulama ID'] = v;
+  else if (key === 'DISCORD_PUBLIC_KEY') cfg['Discord & Bot']['Açık Anahtar'] = v;
+  else if (key === 'DEFAULT_GUEST_ROLE_ID') cfg['Rol Ayarları']['Misafir Rol ID'] = v;
+  else return;
+
+  writeMainConfig(root, cfg);
+  if (key === 'APPLICATION_ID' || key === 'CLIENT_ID') {
+    process.env.CLIENT_ID = v;
+    process.env.APPLICATION_ID = v;
+  } else {
+    process.env[key] = v;
+  }
 }
 
 function stripEnvJsonKeysUpper(root, keys) {
-  const obj = readEnvJsonObject(root);
+  const cfg = ensureObject(readMainConfig(root));
+  cfg['Discord & Bot'] = ensureObject(cfg['Discord & Bot']);
+  cfg['Rol Ayarları'] = ensureObject(cfg['Rol Ayarları']);
   let changed = false;
-  for (const k of keys) {
-    if (k in obj) {
-      delete obj[k];
+  for (const key of keys) {
+    if (key === 'DISCORD_TOKEN' && 'Discord Token' in cfg['Discord & Bot']) {
+      delete cfg['Discord & Bot']['Discord Token'];
       changed = true;
     }
+    if (key === 'GUILD_ID' && 'Sunucu ID' in cfg['Discord & Bot']) {
+      delete cfg['Discord & Bot']['Sunucu ID'];
+      changed = true;
+    }
+    if ((key === 'CLIENT_ID' || key === 'APPLICATION_ID') && 'Uygulama ID' in cfg['Discord & Bot']) {
+      delete cfg['Discord & Bot']['Uygulama ID'];
+      changed = true;
+    }
+    if (key === 'DISCORD_PUBLIC_KEY' && 'Açık Anahtar' in cfg['Discord & Bot']) {
+      delete cfg['Discord & Bot']['Açık Anahtar'];
+      changed = true;
+    }
+    if (key === 'DEFAULT_GUEST_ROLE_ID' && 'Misafir Rol ID' in cfg['Rol Ayarları']) {
+      delete cfg['Rol Ayarları']['Misafir Rol ID'];
+      changed = true;
+    }
+    delete process.env[key];
   }
-  if (changed) writeEnvJsonObject(root, obj);
-  for (const k of keys) delete process.env[k];
+  if (changed) writeMainConfig(root, cfg);
 }
 
 function getFromEnvJson(root, canonicalUpper) {
-  const j = readEnvJsonObject(root);
-  const map = {
-    DISCORD_TOKEN: ['DISCORD_TOKEN', 'discordToken'],
-    GUILD_ID: ['GUILD_ID', 'guildId'],
-    CLIENT_ID: ['CLIENT_ID', 'clientId', 'APPLICATION_ID', 'applicationId'],
-    APPLICATION_ID: ['APPLICATION_ID', 'applicationId', 'CLIENT_ID', 'clientId'],
-    GUILD_IDS: ['GUILD_IDS', 'guildIds'],
-    DISCORD_PUBLIC_KEY: ['DISCORD_PUBLIC_KEY', 'discordPublicKey', 'publicKey'],
-    DEFAULT_GUEST_ROLE_ID: ['DEFAULT_GUEST_ROLE_ID', 'defaultGuestRoleId'],
-  };
-  const keys = map[canonicalUpper] || [canonicalUpper];
-  for (const k of keys) {
-    if (j[k] == null) continue;
-    if (canonicalUpper === 'GUILD_IDS' && Array.isArray(j[k])) {
-      const s = normalizeGuildIdsValue(j[k]);
-      if (s) return s;
-      continue;
-    }
-    const s = typeof j[k] === 'string' ? j[k].trim() : String(j[k]).trim();
-    if (s) return s;
+  const cfg = ensureObject(readMainConfig(root));
+  const bot = ensureObject(cfg['Discord & Bot']);
+  const roles = ensureObject(cfg['Rol Ayarları']);
+
+  if (canonicalUpper === 'DISCORD_TOKEN') return String(bot['Discord Token'] || '').trim();
+  if (canonicalUpper === 'GUILD_ID') return String(bot['Sunucu ID'] || '').trim();
+  if (canonicalUpper === 'CLIENT_ID' || canonicalUpper === 'APPLICATION_ID') {
+    return String(bot['Uygulama ID'] || '').trim();
   }
+  if (canonicalUpper === 'DISCORD_PUBLIC_KEY') return String(bot['Açık Anahtar'] || '').trim();
+  if (canonicalUpper === 'DEFAULT_GUEST_ROLE_ID') return String(roles['Misafir Rol ID'] || '').trim();
   return '';
 }
+
+function applyEnvJsonToProcess() {}
 
 module.exports = {
   loadProjectEnv,

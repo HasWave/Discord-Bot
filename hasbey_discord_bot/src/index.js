@@ -2,8 +2,6 @@ const path = require('path');
 const { ROOT } = require('./lib/paths');
 const { loadProjectEnv } = require('./lib/envJson');
 loadProjectEnv(ROOT);
-const { applyHomeAssistantOptionsMerge } = require('./lib/haOptionsMerge');
-applyHomeAssistantOptionsMerge();
 const fs = require('fs');
 const { Client, Collection, Events, GatewayIntentBits, ActivityType } = require('discord.js');
 const chalk = require('chalk');
@@ -12,6 +10,8 @@ const { readGuildConfig } = require('./lib/storage');
 const { tickAfk } = require('./services/afk');
 const { ensureBotData } = require('./services/tempVoice');
 const { syncMemberCountChannel } = require('./services/channelStatus');
+const { syncGuestChannelRestrictions } = require('./services/guestChannelSync');
+const { resolveGuestRoleId } = require('./lib/resolveRoles');
 const { disableBotIntegrationRoleHoist, disableBotIntegrationRoleHoistAll } = require('./services/botIntegrationRole');
 const { logError, logWarn, installProcessErrorLogging } = require('./lib/botLogger');
 
@@ -46,7 +46,7 @@ function clearRuntimeFile() {
 }
 
 if (!token) {
-  console.error(chalk.red('DISCORD_TOKEN tanımlı değil (env.json, .env veya ortam değişkeni).'));
+  console.error(chalk.red('DISCORD_TOKEN tanımlı değil (config.json veya ortam değişkeni).'));
   process.exit(1);
 }
 
@@ -276,7 +276,7 @@ client.once(Events.ClientReady, (c) => {
     if (!envAppId) {
       console.log(
         chalk.yellow(
-          '   ⚠ CLIENT_ID / APPLICATION_ID yok (env.json veya .env içinde “Uygulama Kimliği”). Bot yine de çalışır; davet URL’si yazdırılamaz. Slash: `npm run deploy-commands` (token ile id okunur) veya env.json’a "CLIENT_ID": "..." ekleyin.'
+          '   ⚠ CLIENT_ID / APPLICATION_ID yok (config.json içindeki “Uygulama ID”). Bot yine de çalışır; davet URL’si yazdırılamaz. Slash: `npm run deploy-commands` (token ile id okunur) veya config.json’a "Uygulama ID" ekleyin.'
         )
       );
     }
@@ -326,6 +326,19 @@ client.once(Events.ClientReady, (c) => {
   for (const g of c.guilds.cache.values()) {
     syncMemberCountChannel(c, g).catch(() => {});
   }
+
+  void (async () => {
+    for (const g of c.guilds.cache.values()) {
+      await g.roles.fetch().catch(() => {});
+      const cfg = readGuildConfig(g.id);
+      if (!resolveGuestRoleId(g, cfg)) continue;
+      await g.channels.fetch().catch(() => {});
+      await syncGuestChannelRestrictions(g, readGuildConfig(g.id), { staggerMs: 100 }).catch((e) =>
+        logWarn('misafir kanal senkronu', `${g.id}: ${e.message}`)
+      );
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  })();
 
   setInterval(() => {
     for (const g of c.guilds.cache.values()) {

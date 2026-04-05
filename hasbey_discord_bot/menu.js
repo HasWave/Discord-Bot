@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * HasBEY terminal menüsü — bot sürecini yönetir, env.json / .env ve yedeklere hızlı erişim.
+ * HasBEY terminal menüsü — bot sürecini yönetir, config.json ve yedeklere hızlı erişim.
  */
 if (!process.env.NO_COLOR) {
   process.env.FORCE_COLOR = process.env.FORCE_COLOR ?? '1';
@@ -27,15 +27,10 @@ const {
   getFromEnvJson,
   setEnvJsonKeyUpper,
   stripEnvJsonKeysUpper,
-  envJsonPath,
-  readEnvJsonObject,
-  writeEnvJsonObject,
 } = require('./src/lib/envJson');
-const { TEMPLATE_GUEST_ROLE_NAME } = require('./src/services/defaultTemplate');
 
 const BOT_JS = path.join(ROOT, 'bot.js');
 const DEPLOY_COMMANDS_JS = path.join(ROOT, 'src', 'deploy-commands.js');
-const ENV_PATH = path.join(ROOT, '.env');
 loadProjectEnv(ROOT);
 
 const BACKUPS_ROOT = path.join(ROOT, 'data', 'backups');
@@ -49,8 +44,8 @@ const CHANNEL_FIELD_LIST = [
     'guestSlashCommandsChannelId',
     'Misafir bot + hoş geldin kanalı (Misafir rolüne görünür; slash / karşılama)',
   ],
-  ['lastRegisteredDisplayChannelId', 'Son Kayıt Kanalı  (「👤」 + Null )'],
-  ['memberCountChannelId', 'Üye Sayısı Kanalı (「👤」 : Null )'],
+  ['lastRegisteredDisplayChannelId', 'Son Kayıt Kanalı (「👤」Null)'],
+  ['memberCountChannelId', 'Üye Sayısı Kanalı (「👤」Null)'],
   ['lobbyVoiceId', 'Özel Oda Kanalı ( 🗝️ ʙᴀɴᴀ ᴛɪᴋʟᴀ )'],
   ['tempCategoryId', 'Kişisel Oda Kategorisi'],
   ['araCommandChannelId', 'Oyuncu Arama Kanalı'],
@@ -70,13 +65,11 @@ const ROLE_FIELD_LIST = [
     'guestRoleId',
     'Misafir rol ID (şablon/kurulum sonrası otomatik; boşsa env DEFAULT_GUEST_ROLE_ID veya rol adı)',
   ],
-  ['memberRoleId', 'Kayıtlı rol ID (/kaydol, geçici oda — boşsa rol adıyla çözülür)'],
+  ['memberRoleId', 'Kayıtlı (teşkilat) rol ID — boşsa rol adıyla çözülür'],
 ];
 
 const FEATURE_LABELS = {
   welcomeOnJoin: 'Yeni Üye Hoş geldin Mesajı',
-  registrationLog: 'Yeni Kayıt Log Tutma',
-  registrationNickAgeFormat: 'Kayıtta Kullanıcı Ad Değiştirme',
   memberCountChannel: 'Üye Sayısı Kanal Adı Güncelleme',
   lastRegisteredDisplay: 'Son Kayıt Adını Kanal Adında Göster',
   tempVoiceFromLobby: 'Özel Oda Kişisel Ses Kanalı Açma',
@@ -87,6 +80,8 @@ const FEATURE_LABELS = {
   wordFilter: 'Kelime Filtresi (sil + uyar)',
   guestSlashRegisterReminder:
     'Misafir bot komut kanalı: kayıt hatırlatması (varsayılan: özelden 1 kez; isteğe kanal + süre)',
+  staffModerationCommands:
+    'Yetkili slash: /at /kilitle /limit /devret /ban /kick /unban (Discord Üye Yasakla/At yetkisi gerekir)',
 };
 
 /** Soru beklerken bot satırlarını biriktir (Seçim: ile log karışmasın) */
@@ -209,46 +204,17 @@ function readRuntimeState() {
   }
 }
 
-/** Menü ve alt süreç ile aynı token mantığı (env.json → process.env → .env satırı) */
+/** Menü ve alt süreç ile aynı token mantığı (config.json → process.env) */
 function readResolvedDiscordToken() {
   let v = String(process.env.DISCORD_TOKEN || '').trim().replace(/^["']|["']$/g, '').trim();
   if (v.length > 8) return v;
 
-  v = getFromEnvJson(ROOT, 'DISCORD_TOKEN')
-    .replace(/^["']|["']$/g, '')
-    .trim();
-  if (v.length > 8) return v;
-
-  if (!fs.existsSync(ENV_PATH)) return '';
-  let raw = fs.readFileSync(ENV_PATH, 'utf8');
-  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
-  const m = raw.match(/^\s*DISCORD_TOKEN\s*=\s*(.+)$/m);
-  if (!m) return '';
-  v = m[1].trim();
-  const hash = v.search(/\s+#/);
-  if (hash >= 0) v = v.slice(0, hash).trim();
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-    v = v.slice(1, -1).trim();
-  }
+  v = getFromEnvJson(ROOT, 'DISCORD_TOKEN').replace(/^["']|["']$/g, '').trim();
   return v;
 }
 
 function readEnvKeyFromFile(key) {
-  const fromJson = getFromEnvJson(ROOT, key);
-  if (fromJson) return fromJson;
-  if (!fs.existsSync(ENV_PATH)) return '';
-  let raw = fs.readFileSync(ENV_PATH, 'utf8');
-  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
-  const re = new RegExp(`^\\s*${key}\\s*=\\s*(.+)$`, 'm');
-  const m = raw.match(re);
-  if (!m) return '';
-  let v = m[1].trim();
-  const hash = v.search(/\s+#/);
-  if (hash >= 0) v = v.slice(0, hash).trim();
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-    v = v.slice(1, -1).trim();
-  }
-  return v;
+  return getFromEnvJson(ROOT, key);
 }
 
 function getEnvValueEffective(key) {
@@ -270,7 +236,7 @@ function applicationIdConfigured() {
   return id.length >= 15 && /^\d+$/.test(id);
 }
 
-/** env.json CLIENT_ID bozuksa (hex vb.) veya yoksa: bot girişinden doğru sayısal kimliği yazar */
+/** config.json Uygulama ID bozuksa (hex vb.) veya yoksa: bot girişinden doğru sayısal kimliği yazar */
 function syncClientIdFromRuntimeIfNeeded() {
   let appId = '';
   try {
@@ -321,7 +287,7 @@ function printConnectionStatusBlock(includeDiscord, discordOk) {
   console.log(
     publicKeyConfigured()
       ? chalk.green('Açık Anahtar : ✅ Tanımlı')
-      : chalk.dim('Açık Anahtar : — (isteğe bağlı, env.json DISCORD_PUBLIC_KEY)')
+      : chalk.dim('Açık Anahtar : — (isteğe bağlı, config.json Açık Anahtar)')
   );
   if (includeDiscord && discordOk) {
     try {
@@ -718,27 +684,14 @@ async function restartBotFromMenu() {
   }
 }
 
-function readEnvFile() {
-  if (!fs.existsSync(ENV_PATH)) return '';
-  return fs.readFileSync(ENV_PATH, 'utf8');
-}
-
-function writeEnvFile(content) {
-  fs.writeFileSync(ENV_PATH, content, 'utf8');
-}
-
 function setEnvKey(key, value) {
   setEnvJsonKeyUpper(ROOT, key, String(value).trim());
-  console.log(chalk.green(`✅ ${key} güncellendi (env.json).\n`));
+  console.log(chalk.green(`✅ ${key} güncellendi (config.json).\n`));
 }
 
-/** Sert sıfırlama: env.json anahtarları + varsa .env satırları */
+/** Sert sıfırlama: merkezi config anahtarları */
 function stripEnvKeys(keys) {
   stripEnvJsonKeysUpper(ROOT, keys);
-  if (!fs.existsSync(ENV_PATH)) return;
-  const lines = fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/);
-  const next = lines.filter((line) => !keys.some((key) => new RegExp(`^\\s*${key}\\s*=`).test(line)));
-  writeEnvFile(next.join('\n'));
 }
 
 /** Onay satırında görünmez karakter / harf varyantı / boşluk toleransı */
@@ -754,11 +707,6 @@ function normalizeHardResetConfirm(s) {
 
 function hardResetDataAndEnv() {
   stripEnvKeys(['DISCORD_TOKEN', 'GUILD_ID', 'CLIENT_ID', 'GUILD_IDS', 'APPLICATION_ID']);
-  try {
-    if (fs.existsSync(envJsonPath(ROOT))) fs.unlinkSync(envJsonPath(ROOT));
-  } catch {
-    /* */
-  }
   const dataRoot = path.join(ROOT, 'data');
   if (fs.existsSync(dataRoot)) {
     fs.rmSync(dataRoot, { recursive: true, force: true });
@@ -868,10 +816,7 @@ function readGuildBackupMeta(gid) {
 function parseGuildIdFromEnv() {
   const g = String(process.env.GUILD_ID || getFromEnvJson(ROOT, 'GUILD_ID')).trim();
   if (/^\d{10,30}$/.test(g)) return g;
-  if (!fs.existsSync(ENV_PATH)) return null;
-  const t = fs.readFileSync(ENV_PATH, 'utf8');
-  const m = t.match(/^\s*GUILD_ID\s*=\s*["']?(\d{10,30})["']?/m);
-  return m ? m[1] : null;
+  return null;
 }
 
 async function runSetupWizardCore(rl) {
@@ -945,7 +890,7 @@ async function runSetupWizardIfNeeded(rl) {
       '⚠️ Token veya Discord Sunucu ID Eksik — Tamamlayin.'
     )
   );
-  console.log(chalk.dim('  env.json / .env veya [4] Bot Ayarlari / [5] Discord Ayarlari.\n'));
+  console.log(chalk.dim('  config.json veya [4] Bot Ayarlari / [5] Discord Ayarlari.\n'));
 
   await runSetupWizardCore(rl);
 }
@@ -965,7 +910,7 @@ async function submenuReset(rl) {
   if (c === '1') {
     const gid = parseGuildIdFromEnv();
     if (!gid) {
-      console.log(chalk.red('❌ GUILD_ID yok (env.json / .env).\n'));
+      console.log(chalk.red('❌ GUILD_ID yok (config.json).\n'));
       return;
     }
     console.log(
@@ -1021,7 +966,7 @@ async function submenuReset(rl) {
     }
     const gid = parseGuildIdFromEnv();
     if (!gid) {
-      console.log(chalk.red('❌ GUILD_ID yok (env.json / .env).\n'));
+      console.log(chalk.red('❌ GUILD_ID yok (config.json).\n'));
       return;
     }
     console.log(chalk.cyan('⏳ Sert Sıfırlama Başlatıldı...\n'));
@@ -1634,14 +1579,9 @@ async function submenuGeneral(rl) {
     console.log(chalk.white('[2] - Kanalları Ayarla'));
     console.log(chalk.white('[3] - Eklentiler'));
     console.log(chalk.white('[4] - Özet (channels + features + roles)'));
-    console.log(chalk.white('[5] - Rol ID'));
-    console.log(chalk.white('[6] - AFK Süresi (dakika)'));
-    console.log(
-      chalk.white('[7] - Misafir kayıt hatırlatması: özelden 1 kez veya kanalda (süreli silinen mesaj)')
-    );
-    console.log(
-      chalk.white('[8] - Varsayılan misafir rol ID (env.json — guild’de guestRoleId boşsa kullanılır)')
-    );
+    console.log(chalk.white('[5] - Misafir Rol ID'));
+    console.log(chalk.white('[6] - AFK Süresi'));
+    console.log(chalk.white('[7] - Kayıt Hatırlatması'));
     console.log(chalk.white(''));
     console.log(chalk.white('[0] - Ana Menü\n'));
     const c = (await prompt(rl)).trim();
@@ -1653,7 +1593,7 @@ async function submenuGeneral(rl) {
     const g = parseGuildIdFromEnv();
     if (!g) {
       console.log(
-        chalk.red('❌ Önce [1] Sunucu ID Ayarları ile GUILD_ID ekleyin (env.json / .env).\n')
+        chalk.red('❌ Önce [1] Sunucu ID Ayarları ile GUILD_ID ekleyin (config.json).\n')
       );
       continue;
     }
@@ -1686,11 +1626,11 @@ async function submenuGeneral(rl) {
     if (c === '6') {
       const cfg = readGuildConfig(g);
       const cur = Number(cfg.timeouts?.afkMinutes ?? 30);
-      console.log(chalk.cyan(`\nAFK suresi su an: ${cur} dk`));
-      const v = (await question(rl, `${ANSI_GREEN}Yeni dakika (1-720)${ANSI_RESET}: `)).trim();
+      console.log(chalk.dim(`\nAFK Süresi : ${cur} Dk.`));
+      const v = (await question(rl, chalk.dim('Yeni Dakika (1-60) : '))).trim();
       const n = parseInt(v, 10);
-      if (!Number.isInteger(n) || n < 1 || n > 720) {
-        console.log(chalk.red('❌ Gecerli bir dakika girin (1-720).\n'));
+      if (!Number.isInteger(n) || n < 1 || n > 60) {
+        console.log(chalk.red('❌ Gecerli bir dakika girin (1-60).\n'));
         continue;
       }
       cfg.timeouts = { ...(cfg.timeouts || {}), afkMinutes: n };
@@ -1703,7 +1643,7 @@ async function submenuGeneral(rl) {
       const styleCur = cfg.timeouts?.guestRegisterReminderStyle === 'channel' ? 'channel' : 'dm_once';
       const rawMin = Number(cfg.timeouts?.guestRegisterReminderDeleteMinutes ?? 5);
       const minCur = rawMin === 10 || rawMin === 15 ? rawMin : 5;
-      console.log(chalk.cyan('\nMisafir kayit hatirlatmasi'));
+      console.log(chalk.cyan('\nKayıt Hatırlatması'));
       console.log(
         chalk.dim(
           `Su an: ${styleCur === 'dm_once' ? 'Özelden 1 kez (kanal kirletilmez)' : `Kanalda, ${minCur} dk sonra silinen mesaj`}\n`
@@ -1740,39 +1680,6 @@ async function submenuGeneral(rl) {
       );
       continue;
     }
-    if (c === '8') {
-      loadProjectEnv(ROOT);
-      const cur = getFromEnvJson(ROOT, 'DEFAULT_GUEST_ROLE_ID');
-      console.log(chalk.cyan('\nVarsayılan misafir rol ID (env.json)'));
-      console.log(
-        chalk.dim(
-          'Guild JSON’da `guestRoleId` boşken bot bu snowflake’i kullanır. `/start` veya `/kur` ile şablon kurulduğunda gerçek rol ID’si dosyaya yazılır (öncelik guild’dedir).'
-        )
-      );
-      console.log(chalk.dim(`Şablon misafir rol adı: ${TEMPLATE_GUEST_ROLE_NAME}`));
-      console.log(chalk.dim(`Şu an env: ${cur || '(tanımlı değil)'}\n`));
-      console.log(chalk.dim('Enter = atla   - = env anahtarını sil\n'));
-      const v = (await question(rl, `${ANSI_GREEN}Yeni rol snowflake${ANSI_RESET}: `)).trim();
-      if (v === '') continue;
-      if (v === '-') {
-        stripEnvJsonKeysUpper(ROOT, ['DEFAULT_GUEST_ROLE_ID']);
-        const obj = readEnvJsonObject(ROOT);
-        if ('defaultGuestRoleId' in obj) {
-          delete obj.defaultGuestRoleId;
-          writeEnvJsonObject(ROOT, obj);
-        }
-        delete process.env.DEFAULT_GUEST_ROLE_ID;
-        console.log(chalk.green('✅ DEFAULT_GUEST_ROLE_ID kaldırıldı.\n'));
-        continue;
-      }
-      if (!/^\d{10,25}$/.test(v)) {
-        console.log(chalk.red('❌ Geçerli bir rol snowflake girin.\n'));
-        continue;
-      }
-      setEnvJsonKeyUpper(ROOT, 'DEFAULT_GUEST_ROLE_ID', v);
-      console.log(chalk.green('✅ env.json güncellendi. Çalışan bot süreci varsa yeniden başlatın.\n'));
-      continue;
-    }
     console.log(chalk.red('❌ Geçersiz seçim.\n'));
   }
 }
@@ -1780,21 +1687,20 @@ async function submenuGeneral(rl) {
 async function submenuEnv(rl) {
   for (;;) {
     printSubmenuBox('Bot Ayarları');
-    console.log(chalk.white('[1] - Discord Token'));
-    console.log(chalk.white('[2] - Discord Sunucu ID'));
+    console.log(chalk.white('[1] - Bot Görünümü'));
+    console.log(chalk.white('[2] - Discord Token'));
     console.log(chalk.white('[3] - Bot Uygulama ID'));
     console.log(chalk.white('[4] - Bot Açık Anahtar ID'));
-    console.log(chalk.white('[5] - Bot Görünümü'));
     console.log(chalk.white(''));
     console.log(chalk.white('[0] Ana Menü\n'));
     const c = (await prompt(rl)).trim();
     if (c === '0') return;
     if (c === '1') {
-      await promptEnvKeyEdit(rl, 'DISCORD_TOKEN');
+      await submenuBotProfilePatch(rl);
       continue;
     }
     if (c === '2') {
-      await promptEnvKeyEdit(rl, 'GUILD_ID');
+      await promptEnvKeyEdit(rl, 'DISCORD_TOKEN');
       continue;
     }
     if (c === '3') {
@@ -1803,10 +1709,6 @@ async function submenuEnv(rl) {
     }
     if (c === '4') {
       await promptEnvKeyEdit(rl, 'DISCORD_PUBLIC_KEY');
-      continue;
-    }
-    if (c === '5') {
-      await submenuBotProfilePatch(rl);
       continue;
     }
     console.log(chalk.red('❌ Geçersiz seçim.\n'));
@@ -1896,7 +1798,7 @@ async function promptEnvKeyEdit(rl, key) {
 async function submenuBackup(rl) {
   const gid = parseGuildIdFromEnv();
   if (!gid) {
-    console.log(chalk.red('GUILD_ID yok (env.json / .env). Önce [5] Discord Ayarları → [1] Sunucu ID.\n'));
+    console.log(chalk.red('GUILD_ID yok (config.json). Önce [5] Discord Ayarları → [1] Sunucu ID.\n'));
     return;
   }
   for (;;) {

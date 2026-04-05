@@ -20,7 +20,7 @@ function formatLastRegisteredDisplay(rawName) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80);
-  return `${DISPLAY_PREFIX} ${clean || '—'}`.slice(0, 100);
+  return `${DISPLAY_PREFIX}${clean || '—'}`.slice(0, 100);
 }
 
 function canRenameChannel(client, guildId, channelId) {

@@ -7,13 +7,14 @@ function isGuildSetup(cfg) {
 }
 
 /**
- * Üye girişinde misafir + hoş geldin: tam `/start` veya (Supervisor) karşılama kanalı + misafir rolü tanımlıysa.
+ * Üye girişinde hoş geldin: `/start` tamamlandıysa veya misafir bot komut kanalı + misafir rolü hazırsa.
  */
 function isJoinOnboardingReady(cfg, guild) {
   if (isGuildSetup(cfg)) return true;
   const welcomeCh = resolveWelcomeChannelId(cfg);
+  if (!welcomeCh) return false;
   const guestRole = resolveGuestRoleId(guild, cfg);
-  return Boolean(welcomeCh && guestRole);
+  return Boolean(guestRole);
 }
 
 function canOperateServer(member, cfg) {
@@ -24,6 +25,20 @@ function canOperateServer(member, cfg) {
   if (ownerRoleId && member.roles?.cache?.has(ownerRoleId)) return true;
   if (adminRoleId && member.roles?.cache?.has(adminRoleId)) return true;
   return false;
+}
+
+/**
+ * Kick/ban hedefi: sunucu sahibi veya senden üst veya eşit rol (yönetici) ise false.
+ * Hedef sunucuda değilse (yalnızca User) true döner; API yine de reddedebilir.
+ */
+function canModerateMember(moderatorMember, targetMember, guild) {
+  if (!moderatorMember || !guild) return false;
+  if (!targetMember) return true;
+  if (targetMember.id === guild.ownerId) return false;
+  if (moderatorMember.id === guild.ownerId) return true;
+  if (moderatorMember.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (targetMember.permissions.has(PermissionFlagsBits.Administrator)) return false;
+  return moderatorMember.roles.highest.comparePositionTo(targetMember.roles.highest) > 0;
 }
 
 /**
@@ -74,4 +89,10 @@ function isGuildBareForKur(guild) {
   return true;
 }
 
-module.exports = { isGuildSetup, isJoinOnboardingReady, canOperateServer, isGuildBareForKur };
+module.exports = {
+  isGuildSetup,
+  isJoinOnboardingReady,
+  canOperateServer,
+  canModerateMember,
+  isGuildBareForKur,
+};

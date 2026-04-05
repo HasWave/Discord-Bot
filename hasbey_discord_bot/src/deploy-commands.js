@@ -9,7 +9,7 @@ const token = process.env.DISCORD_TOKEN;
 const guildRaw = process.env.GUILD_IDS || process.env.GUILD_ID || '';
 
 if (!token) {
-  console.error('DISCORD_TOKEN yok (env.json, .env veya ortam değişkeni).');
+  console.error('DISCORD_TOKEN yok (config.json veya ortam değişkeni).');
   process.exit(1);
 }
 
@@ -59,7 +59,7 @@ const rest = new REST({ version: '10' }).setToken(token);
       clientId = tokenAppId;
       console.log(
         `ℹ CLIENT_ID tanımsız; token ile uygulama kimliği okundu: ${clientId}\n` +
-          '  İstersen env.json içine ekleyebilirsin: "CLIENT_ID": "' +
+          '  İstersen config.json içine ekleyebilirsin: "Discord & Bot" -> "Uygulama ID": "' +
           clientId +
           '"\n'
       );
@@ -90,7 +90,7 @@ const rest = new REST({ version: '10' }).setToken(token);
       await rest.put(Routes.applicationCommands(clientId), { body });
       console.log(`✓ Slash komutları global yüklendi (${body.length} komut).`);
       console.log('\nNot: Global komutların Discord’da görünmesi birkaç dakika ile ~1 saat arası sürebilir.');
-      console.log('İpucu: env.json veya .env içine GUILD_ID ekleyip bu scripti tekrar çalıştırırsan o sunucuda komutlar anında görünür.');
+      console.log('İpucu: config.json içine "Discord & Bot" -> "Sunucu ID" ekleyip bu scripti tekrar çalıştırırsan o sunucuda komutlar anında görünür.');
     }
     console.log('\n→ Davet linkinde mutlaka şu scope olmalı: bot + applications.commands');
     console.log('→ Komutlar hâlâ yoksa: Bu scripti (npm run deploy-commands) token/client sonrası mutlaka çalıştır.');
@@ -103,7 +103,7 @@ const rest = new REST({ version: '10' }).setToken(token);
     }
     if (!String(process.env.CLIENT_ID || process.env.APPLICATION_ID || '').trim()) {
       console.error(
-        '\nCLIENT_ID yokken token ile uygulama okunamadıysa: Developer Portal → Uygulama → Genel Bilgiler → Uygulama Kimliği → env.json / .env'
+        '\nCLIENT_ID yokken token ile uygulama okunamadıysa: Developer Portal → Uygulama → Genel Bilgiler → Uygulama Kimliği → config.json'
       );
     }
     process.exit(1);

@@ -3,6 +3,10 @@ const { ensureBotData } = require('./tempVoice');
 function touchVoiceJoin(client, guildId, userId, channelId, cfg) {
   const bd = ensureBotData(client);
   const key = `${guildId}:${userId}`;
+  if (cfg.features?.afkMover === false) {
+    bd.voiceJoinedAt.delete(key);
+    return;
+  }
   if (!channelId) {
     bd.voiceJoinedAt.delete(key);
     return;

@@ -19,7 +19,7 @@ async function deleteAllChannelsAndRoles(guild) {
 }
 
 /**
- * @param {boolean} [hoist=false] Üye listesinde rol başlığı altında gruplama. Açıkken misafirler diğer rollerin aktif üyelerini ayrı bloklarda net görür; kapalı tutmak gizliliği artırır (isimler yine listelenebilir — Discord bunu tamamen kapatmıyor).
+ * @param {boolean} [hoist=false] “Rolü olan üyeleri çevrimiçi üyelerden ayrı göster”. Misafir rolünde kapalı; diğer şablon rollerinde açık.
  */
 async function createRole(guild, name, permissions = 0n, hoist = false) {
   return guild.roles.create({
@@ -57,7 +57,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
     : guild.members?.cache?.size || 0;
 
   const roles = {};
-  roles.owner = await createRole(guild, '👑 ᴏᴡɴᴇʀ', PermissionFlagsBits.Administrator);
+  roles.owner = await createRole(guild, '👑 ᴏᴡɴᴇʀ', PermissionFlagsBits.Administrator, true);
   roles.admin = await createRole(
     guild,
     '🛡️ ᴀᴅᴍɪɴ',
@@ -65,21 +65,28 @@ async function installDefaultTemplate(guild, botOwnerId) {
       PermissionFlagsBits.ManageChannels |
       PermissionFlagsBits.ManageRoles |
       PermissionFlagsBits.ManageMessages |
-      PermissionFlagsBits.KickMembers
+      PermissionFlagsBits.KickMembers,
+    true
   );
-  roles.mod = await createRole(guild, '⚒️ ᴍᴏᴅ', PermissionFlagsBits.ManageMessages);
-  roles.trialMod = await createRole(guild, '🧪 ᴛʀɪᴀʟ ᴍᴏᴅ', PermissionFlagsBits.ManageMessages);
-  roles.destek = await createRole(guild, '🎧 ᴅᴇꜱᴛᴇᴋ ᴇᴋɪʙɪ');
-  roles.etkinlik = await createRole(guild, '🎉 ᴇᴛᴋɪɴʟɪᴋ ꜱᴏʀᴜᴍʟᴜꜱᴜ');
-  roles.streamer = await createRole(guild, '🛰️ ꜱᴛʀᴇᴀᴍᴇʀ');
-  roles.developer = await createRole(guild, '💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ');
-  roles.vip = await createRole(guild, '💎 ᴠɪᴘ');
-  roles.botTag = await createRole(guild, '🤖 ʙᴏᴛ');
-  roles.hanim = await createRole(guild, '🧸 ʜᴀɴıᴍ ᴇꜰᴇɴᴅɪʟᴇʀ');
-  roles.drama = await createRole(guild, '🎭 ᴅʀᴀᴍᴀ Qᴜᴇɴ');
-  /** Teşkilat ve misafir: üye listesinde ayrı rol başlığı (çevrimiçi olduklarında kendi bloklarında görünür). */
+  roles.mod = await createRole(guild, '⚒️ ᴍᴏᴅ', PermissionFlagsBits.ManageMessages, true);
+  roles.trialMod = await createRole(guild, '🧪 ᴛʀɪᴀʟ ᴍᴏᴅ', PermissionFlagsBits.ManageMessages, true);
+  roles.kickMod = await createRole(guild, '👮 ᴋɪ̇ᴄᴋ ᴍᴏᴅ', PermissionFlagsBits.KickMembers, true);
+  roles.destek = await createRole(guild, '🎧 ᴅᴇꜱᴛᴇᴋ ᴇᴋɪʙɪ', 0n, true);
+  roles.etkinlik = await createRole(guild, '🎉 ᴇᴛᴋɪɴʟɪᴋ ꜱᴏʀᴜᴍʟᴜꜱᴜ', 0n, true);
+  roles.streamer = await createRole(guild, '🛰️ ꜱᴛʀᴇᴀᴍᴇʀ', 0n, true);
+  roles.developer = await createRole(guild, '💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ', 0n, true);
+  roles.vip = await createRole(guild, '💎 ᴠɪᴘ', 0n, true);
+  roles.botTag = await createRole(guild, '🤖 ʙᴏᴛ', 0n, true);
+  roles.hanim = await createRole(guild, '🧸 ʜᴀɴıᴍ ᴇꜰᴇɴᴅɪʟᴇʀ', 0n, true);
+  roles.drama = await createRole(guild, '🎭 ᴅʀᴀᴍᴀ Qᴜᴇɴ', 0n, true);
+  /** Misafir hariç: çevrimiçi listesinde ayrı blok. Misafir: aynı blokta (hoist kapalı). */
   roles.member = await createRole(guild, '🎖️ ᴛᴇꜱ̧ᴋɪʟᴀᴛ', 0n, true);
-  roles.guest = await createRole(guild, TEMPLATE_GUEST_ROLE_NAME, 0n, true);
+  roles.guest = await createRole(guild, TEMPLATE_GUEST_ROLE_NAME, 0n, false);
+
+  /** 🤖 bot rolü: hiyerarşide en alta (@everyone hemen üstü) */
+  await roles.botTag
+    .setPosition(1, { relative: false, reason: 'HasBEY: bot rolü en alta' })
+    .catch(() => {});
 
   const meId = guild.members.me?.id;
 
@@ -112,6 +119,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
     roles.admin.id,
     roles.mod.id,
     roles.trialMod.id,
+    roles.kickMod.id,
     roles.destek.id,
     roles.etkinlik.id,
   ];
@@ -123,6 +131,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
     roles.admin.id,
     roles.mod.id,
     roles.trialMod.id,
+    roles.kickMod.id,
     roles.destek.id,
     roles.etkinlik.id,
     roles.streamer.id,
@@ -267,6 +276,25 @@ async function installDefaultTemplate(guild, botOwnerId) {
     },
   ];
 
+  /** Misafir bot kanalı: kategori mirası tek başına bazı istemcilerde yazma/slash eksik bırakabiliyor. */
+  const guestBotSlashTextAllows = [
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.SendMessagesInThreads,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.EmbedLinks,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseApplicationCommands,
+  ];
+  const guestBotTextOverwrites = mergePermissionOverwrites([
+    registrationCategoryOverwrites,
+    [
+      { id: roles.guest.id, allow: guestBotSlashTextAllows },
+      { id: roles.member.id, allow: guestBotSlashTextAllows },
+      ...staffWriteRoleIds.map((id) => ({ id, allow: guestBotSlashTextAllows })),
+    ],
+  ]);
+
   const channels = {};
   const create = (opts) => guild.channels.create({ ...opts, reason: 'HasBEY varsayilan sablon' });
 
@@ -284,9 +312,14 @@ async function installDefaultTemplate(guild, botOwnerId) {
   await guild
     .setSystemChannel(channels.gelenVar.id, 'HasBEY sistem mesaj kanali')
     .catch(() => {});
-  channels.guestBot = await create({ name: '「🤖」ʙᴏᴛ-ᴋᴏᴍᴜᴛ', type: ChannelType.GuildText, parent: catStatus.id });
+  channels.guestBot = await create({
+    name: '「🤖」ʙᴏᴛ-ᴋᴏᴍᴜᴛ',
+    type: ChannelType.GuildText,
+    parent: catStatus.id,
+    permissionOverwrites: guestBotTextOverwrites,
+  });
   channels.lastRegistered = await create({
-    name: '「👤」 Null',
+    name: '「👤」Null',
     type: ChannelType.GuildVoice,
     parent: catStatus.id,
     permissionOverwrites: lockedStatVoiceOverwrites,
@@ -356,6 +389,10 @@ async function installDefaultTemplate(guild, botOwnerId) {
     },
     {
       id: roles.trialMod.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+    },
+    {
+      id: roles.kickMod.id,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
     },
     {
@@ -497,6 +534,7 @@ async function installDefaultTemplate(guild, botOwnerId) {
       adminRoleId: roles.admin.id,
       modRoleId: roles.mod.id,
       trialModRoleId: roles.trialMod.id,
+      kickModRoleId: roles.kickMod.id,
       supportRoleId: roles.destek.id,
       eventRoleId: roles.etkinlik.id,
       streamerRoleId: roles.streamer.id,
