@@ -97,6 +97,11 @@ async function completeJoinFromButton(interaction) {
     content:
       '✅ **Kayıt tamamlandı.** Teşkilat rolün verildi; artık sunucunun diğer kanallarına erişebilirsin.',
   });
+
+  const welcomeMsg = interaction.message;
+  if (welcomeMsg?.author?.id === interaction.client.user.id) {
+    await welcomeMsg.delete().catch(() => {});
+  }
 }
 
 async function handleButton(interaction) {
